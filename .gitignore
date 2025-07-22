@@ -1,5 +1,27 @@
+# TypeScript/Node
 node_modules/
 dist/
+*.log
+.env
+.env.*
 !.env.example
-.env*
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Test artifacts
+*.tmp
+temp/

@@ -1,0 +1,31 @@
+[package]
+name = "lpop"
+version = "1.0.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A CLI tool for managing environment variables in the system keychain"
+license = "MIT"
+repository = "https://github.com/loggipop/lpop"
+
+[[bin]]
+name = "lpop"
+path = "src/main.rs"
+
+[dependencies]
+keyring = "3.6.1"
+git2 = "0.19.0"
+clap = { version = "4.5.23", features = ["derive", "env"] }
+anyhow = "1.0.95"
+dirs = "5.0.1"
+colored = "2.2.0"
+url = "2.5.4"
+
+[dev-dependencies]
+tempfile = "3.14.0"
+serial_test = "3.2.0"
+
+[profile.release]
+lto = true
+strip = true
+opt-level = "z"
+codegen-units = 1

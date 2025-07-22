@@ -1,0 +1,42 @@
+{
+	"name": "lpop",
+	"version": "1.0.0",
+	"description": "A CLI tool for managing environment variables in the system keychain",
+	"type": "module",
+	"main": "dist/index.js",
+	"bin": {
+		"lpop": "./dist/index.js"
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsx src/index.ts",
+		"start": "node dist/index.js",
+		"watch": "tsc --watch",
+		"clean": "rm -rf dist"
+	},
+	"keywords": [
+		"cli",
+		"environment",
+		"variables",
+		"keychain",
+		"git"
+	],
+	"author": "",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2"
+	},
+	"dependencies": {
+		"@napi-rs/keyring": "^1.1.8",
+		"chalk": "^5.4.1",
+		"commander": "^14.0.0",
+		"dotenv": "^17.2.0",
+		"git-url-parse": "^16.1.0",
+		"simple-git": "^3.28.0"
+	},
+	"engines": {
+		"node": ">=24.0.0"
+	}
+}

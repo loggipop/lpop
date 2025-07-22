@@ -183,3 +183,79 @@ impl EnvFileParser {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_parse_simple_env() {
+        let content = r#"
+KEY1=value1
+KEY2=value2
+# This is a comment
+KEY3=value3
+"#;
+        let vars = EnvFileParser::parse_content(content).unwrap();
+        assert_eq!(vars.get("KEY1").unwrap(), "value1");
+        assert_eq!(vars.get("KEY2").unwrap(), "value2");
+        assert_eq!(vars.get("KEY3").unwrap(), "value3");
+        assert_eq!(vars.len(), 3);
+    }
+
+    #[test]
+    fn test_parse_quoted_values() {
+        let content = r#"
+SIMPLE=unquoted
+DOUBLE="double quoted"
+SINGLE='single quoted'
+ESCAPED="with \"escaped\" quotes"
+"#;
+        let vars = EnvFileParser::parse_content(content).unwrap();
+        assert_eq!(vars.get("SIMPLE").unwrap(), "unquoted");
+        assert_eq!(vars.get("DOUBLE").unwrap(), "double quoted");
+        assert_eq!(vars.get("SINGLE").unwrap(), "single quoted");
+        assert_eq!(vars.get("ESCAPED").unwrap(), "with \"escaped\" quotes");
+    }
+
+    #[test]
+    fn test_parse_multiline_values() {
+        let content = r#"
+SINGLE_LINE=value
+WITH_NEWLINE="line1\nline2"
+WITH_TAB="value\twith\ttabs"
+"#;
+        let vars = EnvFileParser::parse_content(content).unwrap();
+        assert_eq!(vars.get("SINGLE_LINE").unwrap(), "value");
+        assert_eq!(vars.get("WITH_NEWLINE").unwrap(), "line1\nline2");
+        assert_eq!(vars.get("WITH_TAB").unwrap(), "value\twith\ttabs");
+    }
+
+    #[test]
+    fn test_skip_empty_and_comments() {
+        let content = r#"
+# Comment at start
+KEY1=value1
+
+# Another comment
+  # Indented comment
+KEY2=value2
+    
+KEY3=value3
+"#;
+        let vars = EnvFileParser::parse_content(content).unwrap();
+        assert_eq!(vars.len(), 3);
+    }
+
+    #[test]
+    fn test_equals_in_value() {
+        let content = r#"
+URL=https://example.com?foo=bar&baz=qux
+EQUATION=2+2=4
+"#;
+        let vars = EnvFileParser::parse_content(content).unwrap();
+        assert_eq!(vars.get("URL").unwrap(), "https://example.com?foo=bar&baz=qux");
+        assert_eq!(vars.get("EQUATION").unwrap(), "2+2=4");
+    }
+}

@@ -2,7 +2,34 @@
 
 A secure CLI tool for managing environment variables in the system keychain, rewritten in Rust for better security and performance.
 
-## Key Benefits of Rust Version
+## ⚠️ IMPORTANT: macOS Compatibility Issue
+
+**The Rust version currently has a critical bug on macOS** where credentials cannot be retrieved across different program invocations. This is due to a limitation in the `keyring` crate (v3.6.2) where:
+
+- Setting a value works within the same process
+- Getting that value in a new process always fails with "NoEntry"
+- This makes the tool unusable for its intended purpose
+
+See `docs/keyring-issue.md` for technical details.
+
+## Current Status
+
+✅ **What works:**
+- All code compiles and tests pass
+- CLI interface is fully implemented
+- Within a single process, all operations work
+
+❌ **What doesn't work:**
+- Retrieving previously stored credentials (the main use case)
+- Any cross-process keychain access on macOS
+
+## Alternatives
+
+1. **Use the TypeScript version** - It works correctly despite the security limitations
+2. **Wait for keyring crate fix** - Track issue at [keyring-rs repo]
+3. **Use platform-specific implementation** - Directly use macOS Security Framework
+
+## Key Benefits (When Working)
 
 - **Native binary** - Each lpop installation has its own keychain identity
 - **Better security** - Only the lpop binary can access its keychain entries
@@ -12,12 +39,12 @@ A secure CLI tool for managing environment variables in the system keychain, rew
 
 ## Installation
 
-### From source
+### From source (for testing only)
 ```bash
 cargo install --path .
 ```
 
-### Via npm (coming soon)
+### Via npm (not yet available)
 ```bash
 npm install -g lpop
 ```
@@ -84,12 +111,13 @@ cargo build --release --target x86_64-unknown-linux-gnu
 cargo build --release --target x86_64-pc-windows-msvc
 ```
 
-## Current Limitations
+## Known Issues
 
-The Rust `keyring` crate has some limitations compared to the Node.js version:
-- Cannot list all stored credentials (platform limitation)
-- Would need to track keys separately or use platform-specific APIs
+1. **macOS Keychain Persistence** - The main blocker. Credentials set by the tool cannot be retrieved in subsequent invocations.
+2. **Cannot list credentials** - The keyring crate doesn't support enumerating stored credentials.
 
 ## Security
 
 Each lpop binary has its own identity in the system keychain. Other applications (including Node.js or other lpop installations) cannot access your stored variables.
+
+However, due to the persistence bug, this security benefit cannot currently be realized on macOS.

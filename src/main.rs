@@ -1,7 +1,10 @@
-mod cli;
-mod env_parser;
-mod git_resolver;
-mod keychain;
+pub mod cli;
+pub mod env_parser;
+pub mod git_resolver;
+pub mod keychain;
+
+#[cfg(test)]
+mod test_utils;
 
 use anyhow::Result;
 use clap::Parser;

@@ -106,3 +106,60 @@ impl GitPathResolver {
         service_name.split('?').next().unwrap_or(service_name)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::create_git_repo;
+
+    #[test]
+    fn test_parse_github_ssh_url() {
+        let resolver = GitPathResolver::new(None);
+        let info = resolver.parse_git_url("git@github.com:owner/repo.git").unwrap().unwrap();
+        assert_eq!(info.owner, "owner");
+        assert_eq!(info.name, "repo");
+        assert_eq!(info.full_name, "github.com/owner/repo");
+    }
+
+    #[test]
+    fn test_parse_github_https_url() {
+        let resolver = GitPathResolver::new(None);
+        let info = resolver.parse_git_url("https://github.com/owner/repo.git").unwrap().unwrap();
+        assert_eq!(info.owner, "owner");
+        assert_eq!(info.name, "repo");
+        assert_eq!(info.full_name, "github.com/owner/repo");
+    }
+
+    #[test]
+    fn test_generate_service_name_with_git() {
+        let temp_dir = create_git_repo();
+        let resolver = GitPathResolver::new(Some(temp_dir.path().to_path_buf()));
+        
+        // Note: This will use fallback since we can't easily set up a full git remote in tests
+        let service_name = resolver.generate_service_name("production");
+        assert!(service_name.contains("?env=production"));
+    }
+
+    #[test]
+    fn test_generate_service_name_without_git() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let resolver = GitPathResolver::new(Some(temp_dir.path().to_path_buf()));
+        
+        let service_name = resolver.generate_service_name("development");
+        assert!(service_name.starts_with("local/"));
+        assert!(service_name.ends_with("?env=development"));
+    }
+
+    #[test]
+    fn test_extract_env_from_service() {
+        assert_eq!(GitPathResolver::extract_env_from_service("github.com/owner/repo?env=production"), "production");
+        assert_eq!(GitPathResolver::extract_env_from_service("github.com/owner/repo"), "development");
+        assert_eq!(GitPathResolver::extract_env_from_service("local/project?env=staging"), "staging");
+    }
+
+    #[test]
+    fn test_extract_repo_from_service() {
+        assert_eq!(GitPathResolver::extract_repo_from_service("github.com/owner/repo?env=production"), "github.com/owner/repo");
+        assert_eq!(GitPathResolver::extract_repo_from_service("local/project?env=staging"), "local/project");
+    }
+}

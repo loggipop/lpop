@@ -7,12 +7,16 @@ description = "A CLI tool for managing environment variables in the system keych
 license = "MIT"
 repository = "https://github.com/loggipop/lpop"
 
+[lib]
+name = "lpop"
+path = "src/lib.rs"
+
 [[bin]]
 name = "lpop"
 path = "src/main.rs"
 
 [dependencies]
-keyring = "3.6.1"
+keyring = "3.6.2"
 git2 = "0.19.0"
 clap = { version = "4.5.23", features = ["derive", "env"] }
 anyhow = "1.0.95"

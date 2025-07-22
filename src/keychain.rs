@@ -57,3 +57,78 @@ impl KeychainManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    // Note: These tests require keychain access and might prompt for authorization
+    // Run with --test-threads=1 to avoid conflicts
+    
+    #[test]
+    #[serial]
+    fn test_set_and_get_var() {
+        let service = "lpop-test-service".to_string();
+        let keychain = KeychainManager::new(service.clone());
+        
+        // Set a test variable
+        keychain.set_var("TEST_KEY", "test_value").unwrap();
+        
+        // Get it back
+        let value = keychain.get_var("TEST_KEY").unwrap();
+        assert_eq!(value, Some("test_value".to_string()));
+        
+        // Clean up
+        keychain.delete_var("TEST_KEY").unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_nonexistent_var() {
+        let service = "lpop-test-service".to_string();
+        let keychain = KeychainManager::new(service);
+        
+        let value = keychain.get_var("NONEXISTENT_KEY_12345").unwrap();
+        assert_eq!(value, None);
+    }
+
+    #[test]
+    #[serial]
+    fn test_delete_var() {
+        let service = "lpop-test-service".to_string();
+        let keychain = KeychainManager::new(service.clone());
+        
+        // Set a test variable
+        keychain.set_var("DELETE_TEST", "value").unwrap();
+        
+        // Delete it
+        let deleted = keychain.delete_var("DELETE_TEST").unwrap();
+        assert!(deleted);
+        
+        // Verify it's gone
+        let value = keychain.get_var("DELETE_TEST").unwrap();
+        assert_eq!(value, None);
+    }
+
+    #[test]
+    #[serial]
+    fn test_set_multiple_vars() {
+        let service = "lpop-test-service".to_string();
+        let keychain = KeychainManager::new(service);
+        
+        let mut vars = HashMap::new();
+        vars.insert("MULTI_1".to_string(), "value1".to_string());
+        vars.insert("MULTI_2".to_string(), "value2".to_string());
+        
+        keychain.set_vars(vars).unwrap();
+        
+        // Verify both were set
+        assert_eq!(keychain.get_var("MULTI_1").unwrap(), Some("value1".to_string()));
+        assert_eq!(keychain.get_var("MULTI_2").unwrap(), Some("value2".to_string()));
+        
+        // Clean up
+        keychain.delete_var("MULTI_1").unwrap();
+        keychain.delete_var("MULTI_2").unwrap();
+    }
+}

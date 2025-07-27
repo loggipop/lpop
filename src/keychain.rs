@@ -12,17 +12,22 @@ impl KeychainManager {
     }
     
     pub fn set_var(&self, key: &str, value: &str) -> Result<()> {
-        let entry = Entry::new(&self.service_name, key)?;
-        entry.set_password(value)
-            .with_context(|| format!("Failed to set {} in keychain", key))?;
+        let entry = Entry::new_with_target("Protected",&self.service_name, key)?;
+        println!("Setting {} in keychain for service {}", key, self.service_name);
+        entry.set_password(value).with_context(|| format!("Failed to set {} in keychain", key))?;
+        // The `get_var` method returns a `Result<Option<String>>`, which cannot be directly formatted with `{}`.
+        // For debugging, you might want to print the result of `get_var` using `{:?}` or handle the `Result` and `Option` explicitly.
+        let retrieved_value = self.get_var(key)?;
+        println!("Value in keychain is: {:?}", retrieved_value);
         Ok(())
     }
     
     pub fn get_var(&self, key: &str) -> Result<Option<String>> {
-        let entry = Entry::new(&self.service_name, key)?;
+        let entry = Entry::new_with_target("Protected",&self.service_name, key)?;
+        println!("Getting {} in keychain for service {}", key, self.service_name);
         match entry.get_password() {
             Ok(password) => Ok(Some(password)),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            // Err(keyring::Error::NoEntry) => Ok(None),
             Err(e) => Err(e).context("Failed to read from keychain"),
         }
     }
@@ -69,18 +74,25 @@ mod tests {
     #[test]
     #[serial]
     fn test_set_and_get_var() {
-        let service = "lpop-test-service".to_string();
-        let keychain = KeychainManager::new(service.clone());
+        // Test wrapper with a different service name to avoid conflicts
+        let service = "lpop-wrapper-test";
+        let key = "TEST_KEY";
+        
+        println!("=== Testing wrapper approach ===");
+        let keychain = KeychainManager::new(service.to_string());
         
         // Set a test variable
-        keychain.set_var("TEST_KEY", "test_value").unwrap();
+        keychain.set_var(key, "test_value").unwrap();
+        println!("✓ Wrapper set successful");
         
         // Get it back
-        let value = keychain.get_var("TEST_KEY").unwrap();
+        let value = keychain.get_var(key).unwrap();
+        println!("✓ Wrapper get successful: {:?}", value);
         assert_eq!(value, Some("test_value".to_string()));
         
         // Clean up
-        keychain.delete_var("TEST_KEY").unwrap();
+        keychain.delete_var(key).unwrap();
+        println!("✓ Wrapper delete successful");
     }
 
     #[test]

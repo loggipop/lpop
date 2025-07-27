@@ -20,7 +20,7 @@ This document explains how to build `lpop` as a standalone binary using Bun.
 ### Quick Build
 
 ```bash
-pnpm run build:bun-binary
+pnpm build
 ```
 
 This will:
@@ -94,8 +94,7 @@ If you encounter build errors:
 2. **Clean and rebuild**:
 
    ```bash
-   pnpm run clean
-   pnpm run build:bun-binary
+   pnpm build
    ```
 
 3. **Check dependencies**:

@@ -24,7 +24,8 @@ export class LpopCLI {
     // Main command with smart inference
     this.program
       .argument('[input]', 'Path to .env file, variable assignment (KEY=value), or empty for current repo')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
+      .option('-b, --branch <branch>', 'Branch name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string | undefined, options) => {
         await this.handleSmartCommand(input, options);
@@ -34,7 +35,8 @@ export class LpopCLI {
     this.program
       .command('add <input>')
       .description('Add environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
+      .option('-b, --branch <branch>', 'Branch name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string, options) => {
         await this.handleAdd(input, options);
@@ -43,7 +45,8 @@ export class LpopCLI {
     this.program
       .command('get [key]')
       .description('Get environment variables or specific variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
+      .option('-b, --branch <branch>', 'Branch name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('-o, --output <file>', 'Output to .env file')
       .action(async (key: string | undefined, options) => {
@@ -53,7 +56,8 @@ export class LpopCLI {
     this.program
       .command('update <input>')
       .description('Update environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
+      .option('-b, --branch <branch>', 'Branch name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string, options) => {
         await this.handleUpdate(input, options);
@@ -62,7 +66,8 @@ export class LpopCLI {
     this.program
       .command('remove <key>')
       .description('Remove specific environment variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
+      .option('-b, --branch <branch>', 'Branch name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (key: string, options) => {
         await this.handleRemove(key, options);
@@ -71,7 +76,8 @@ export class LpopCLI {
     this.program
       .command('clear')
       .description('Clear all environment variables for the repository/environment')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
+      .option('-b, --branch <branch>', 'Branch name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('--confirm', 'Skip confirmation prompt')
       .action(async (options) => {
@@ -88,9 +94,23 @@ export class LpopCLI {
 
   private async handleSmartCommand(input: string | undefined, options: any): Promise<void> {
     try {
-      // No input - get current repo's variables
+      // No input - show usage since getting all variables requires explicit operation
       if (!input) {
-        await this.handleGet(undefined, options);
+        console.log(chalk.blue('lpop - Environment Variable Manager'));
+        console.log('');
+        console.log(chalk.yellow('With the new service format, specify a variable name:'));
+        console.log('  lpop get VARIABLE_NAME     # Get variable (with fallback to universal)');
+        console.log('  lpop add KEY=value         # Add/update variable');
+        console.log('  lpop add .env              # Add from file');
+        console.log('');
+        console.log('Variable precedence:');
+        console.log('  1. Specific: lpop://org/repo/VAR?env=dev&branch=feat');
+        console.log('  2. Universal: lpop://org/repo/VAR (no env/branch)');
+        console.log('');
+        console.log('Options:');
+        console.log('  --env development          # Environment context (optional)');
+        console.log('  --branch feature-123       # Branch context (optional)');
+        console.log('  --repo org/repo           # Override repository');
         return;
       }
 
@@ -109,9 +129,9 @@ export class LpopCLI {
         return;
       }
 
-      // Treat as file path that might be stored
-      console.log(chalk.blue(`Checking for stored variables...`));
-      await this.handleGet(undefined, { ...options, output: input });
+      // Treat as variable name to get
+      console.log(chalk.blue(`Getting variable: ${input}`));
+      await this.handleGet(input, options);
 
     } catch (error) {
       console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
@@ -120,9 +140,6 @@ export class LpopCLI {
   }
 
   private async handleAdd(input: string, options: any): Promise<void> {
-    const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
-
     try {
       let entries: EnvEntry[];
 
@@ -136,8 +153,15 @@ export class LpopCLI {
         entries = [EnvFileParser.parseVariable(input)];
       }
 
-      await keychain.setEnvironmentVariables(entries);
-      console.log(chalk.green(`✓ Added ${entries.length} variables to ${serviceName}`));
+      // Create keychain manager (base service name not used for variable storage)
+      const keychain = new KeychainManager('lpop-base');
+      
+      // Store each variable with its own service name
+      for (const { key, value } of entries) {
+        const serviceName = await this.getServiceName(key, options);
+        await keychain.setEnvironmentVariable(serviceName, value);
+        console.log(chalk.green(`✓ Added ${key} -> ${serviceName}`));
+      }
 
     } catch (error) {
       console.error(chalk.red(`Error adding variables: ${error instanceof Error ? error.message : String(error)}`));
@@ -146,41 +170,33 @@ export class LpopCLI {
   }
 
   private async handleGet(key: string | undefined, options: any): Promise<void> {
-    const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
+    const keychain = new KeychainManager('lpop-base');
 
     try {
-      const variables = await keychain.getEnvironmentVariables();
-
-      if (variables.length === 0) {
-        console.log(chalk.yellow(`No variables found for ${serviceName}`));
-        return;
-      }
-
       if (key) {
-        // Get specific variable
-        const variable = variables.find(v => v.key === key);
-        if (variable) {
+        // Get specific variable with fallback to universal
+        const serviceName = await this.getServiceName(key, options);
+        const result = await keychain.getEnvironmentVariableWithFallback(serviceName);
+        
+        if (result.value) {
           if (options.output) {
-            await EnvFileParser.writeFile(options.output, [variable]);
+            await EnvFileParser.writeFile(options.output, [{ key, value: result.value }]);
             console.log(chalk.green(`✓ Variable ${key} written to ${options.output}`));
           } else {
-            console.log(`${variable.key}=${variable.value}`);
+            console.log(`${key}=${result.value}`);
+          }
+          // Show which source was used if it's different from requested
+          if (result.source !== serviceName) {
+            console.log(chalk.dim(`(using universal: ${result.source})`));
           }
         } else {
           console.log(chalk.yellow(`Variable ${key} not found`));
         }
       } else {
-        // Get all variables
-        if (options.output) {
-          await EnvFileParser.writeFile(options.output, variables);
-          console.log(chalk.green(`✓ ${variables.length} variables written to ${options.output}`));
-        } else {
-          console.log(chalk.blue(`Environment variables for ${serviceName}:`));
-          for (const { key: varKey, value } of variables) {
-            console.log(`${varKey}=${value}`);
-          }
-        }
+        // Get all variables - this requires finding all lpop:// services
+        console.log(chalk.yellow('Getting all variables requires searching keychain for lpop:// services.'));
+        console.log(chalk.yellow('This operation is not yet implemented with the new service format.'));
+        console.log(chalk.blue('Specify a variable name: lpop get VARIABLE_NAME'));
       }
 
     } catch (error) {
@@ -195,15 +211,21 @@ export class LpopCLI {
   }
 
   private async handleRemove(key: string, options: any): Promise<void> {
-    const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
+    const keychain = new KeychainManager('lpop-base');
 
     try {
-      const removed = await keychain.removeEnvironmentVariable(key);
-      if (removed) {
-        console.log(chalk.green(`✓ Removed variable ${key} from ${serviceName}`));
+      const serviceName = await this.getServiceName(key, options);
+      const result = await keychain.removeEnvironmentVariableWithFallback(serviceName);
+      
+      if (result.removed) {
+        console.log(chalk.green(`✓ Removed variable ${key}`));
+        if (result.source !== serviceName) {
+          console.log(chalk.dim(`(removed universal: ${result.source})`));
+        } else {
+          console.log(chalk.dim(`(removed specific: ${result.source})`));
+        }
       } else {
-        console.log(chalk.yellow(`Variable ${key} not found in ${serviceName}`));
+        console.log(chalk.yellow(`Variable ${key} not found`));
       }
     } catch (error) {
       console.error(chalk.red(`Error removing variable: ${error instanceof Error ? error.message : String(error)}`));
@@ -212,18 +234,16 @@ export class LpopCLI {
   }
 
   private async handleClear(options: any): Promise<void> {
-    const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
-
     try {
       if (!options.confirm) {
-        console.log(chalk.yellow(`This will remove ALL environment variables for ${serviceName}`));
+        console.log(chalk.yellow('This will remove ALL environment variables with lpop:// service names'));
         console.log(chalk.yellow('Use --confirm to skip this warning'));
         return;
       }
 
-      await keychain.clearAllEnvironmentVariables();
-      console.log(chalk.green(`✓ Cleared all variables for ${serviceName}`));
+      console.log(chalk.yellow('Clear operation not yet implemented with new service format.'));
+      console.log(chalk.blue('The new format requires finding all lpop:// services in keychain.'));
+      console.log(chalk.blue('Use individual variable removal: lpop remove VARIABLE_NAME'));
 
     } catch (error) {
       console.error(chalk.red(`Error clearing variables: ${error instanceof Error ? error.message : String(error)}`));
@@ -239,12 +259,22 @@ export class LpopCLI {
     console.log(chalk.yellow('Use specific repo/env combinations to check for stored variables.'));
   }
 
-  private async getServiceName(options: any): Promise<string> {
+  private async getServiceName(variableName: string, options: any): Promise<string> {
     if (options.repo) {
-      return `${options.repo}?env=${options.env}`;
+      // Parse repo format like "org/repo" and construct lpop:// URL
+      const baseServiceName = `lpop://${options.repo}/${variableName}`;
+      return this.buildServiceNameWithParams(baseServiceName, options.env, options.branch);
     }
 
-    return await this.gitResolver.generateServiceNameAsync(options.env);
+    return await this.gitResolver.generateServiceNameAsync(variableName, options.env, options.branch);
+  }
+
+  private buildServiceNameWithParams(baseServiceName: string, environment?: string, branch?: string): string {
+    const params = [];
+    if (environment) params.push(`env=${environment}`);
+    if (branch) params.push(`branch=${branch}`);
+    
+    return params.length > 0 ? `${baseServiceName}?${params.join('&')}` : baseServiceName;
   }
 
   public async run(): Promise<void> {

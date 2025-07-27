@@ -53,26 +53,22 @@ export class GitPathResolver {
     }
   }
 
-  generateServiceName(environment: string = 'development'): string {
+  generateServiceName(variableName: string, environment?: string, branch?: string): string {
     const gitInfo = this.getGitInfoSync();
-    if (gitInfo) {
-      return `${gitInfo.full_name}?env=${environment}`;
-    }
+    const baseServiceName = gitInfo 
+      ? `lpop://${gitInfo.owner}/${gitInfo.name}/${variableName}`
+      : `lpop://local/${this.workingDir.split('/').pop() || 'unknown'}/${variableName}`;
     
-    // Fallback to current directory name
-    const dirName = this.workingDir.split('/').pop() || 'unknown';
-    return `local/${dirName}?env=${environment}`;
+    return this.buildServiceNameWithParams(baseServiceName, environment, branch);
   }
 
-  async generateServiceNameAsync(environment: string = 'development'): Promise<string> {
+  async generateServiceNameAsync(variableName: string, environment?: string, branch?: string): Promise<string> {
     const gitInfo = await this.getGitInfo();
-    if (gitInfo) {
-      return `${gitInfo.full_name}?env=${environment}`;
-    }
+    const baseServiceName = gitInfo 
+      ? `lpop://${gitInfo.owner}/${gitInfo.name}/${variableName}`
+      : `lpop://local/${this.workingDir.split('/').pop() || 'unknown'}/${variableName}`;
     
-    // Fallback to current directory name
-    const dirName = this.workingDir.split('/').pop() || 'unknown';
-    return `local/${dirName}?env=${environment}`;
+    return this.buildServiceNameWithParams(baseServiceName, environment, branch);
   }
 
   private getGitInfoSync(): GitInfo | null {
@@ -87,12 +83,33 @@ export class GitPathResolver {
     return null;
   }
 
-  static extractEnvironmentFromService(serviceName: string): string {
-    const match = serviceName.match(/\?env=([^&]+)/);
-    return match ? match[1] : 'development';
+  private buildServiceNameWithParams(baseServiceName: string, environment?: string, branch?: string): string {
+    const params = [];
+    if (environment) params.push(`env=${environment}`);
+    if (branch) params.push(`branch=${branch}`);
+    
+    return params.length > 0 ? `${baseServiceName}?${params.join('&')}` : baseServiceName;
+  }
+
+  static extractEnvironmentFromService(serviceName: string): string | undefined {
+    const match = serviceName.match(/[?&]env=([^&]+)/);
+    return match ? match[1] : undefined;
+  }
+
+  static extractBranchFromService(serviceName: string): string | undefined {
+    const match = serviceName.match(/[?&]branch=([^&]+)/);
+    return match ? match[1] : undefined;
+  }
+
+  static extractVariableFromService(serviceName: string): string {
+    // Extract variable from lpop://org/repo/VARIABLE or lpop://org/repo/VARIABLE?params
+    const match = serviceName.match(/lpop:\/\/[^/]+\/[^/]+\/([^?]+)/);
+    return match ? match[1] : '';
   }
 
   static extractRepoFromService(serviceName: string): string {
-    return serviceName.split('?')[0];
+    // Extract org/repo from lpop://org/repo/variable
+    const match = serviceName.match(/lpop:\/\/([^/]+\/[^/]+)/);
+    return match ? match[1] : serviceName.split('?')[0];
   }
 }

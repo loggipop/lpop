@@ -1,5 +1,9 @@
 node_modules/
 dist/
+lpop
 !.env.example
 .env*
 .DS_Store
+
+.history/
+.cursor/

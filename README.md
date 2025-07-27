@@ -1,6 +1,65 @@
 # lpop
 
-A CLI tool for managing environment variables securely in the system keychain. Organizes variables by git repository and environment.
+A CLI tool for managing environment variables in the system keychain
+
+## Building as Binary Executable
+
+This CLI is be built as a standalone binary executable
+
+#### Prerequisites
+
+- [Bun](https://bun.sh/) installed on your system
+
+#### Build Steps
+
+1. **Build the binary:**
+   ```bash
+   pnpm build
+   ```
+
+This will create a `lpop` binary file in your project root that can be distributed and run without Node.js or Bun installed.
+
+### Build Process
+
+The Bun build process consists of:
+
+1. **Bun compilation** with minification and optimization
+2. **Binary creation** with proper naming and permissions
+3. **Symlink creation** for easy access
+
+### Usage
+
+After building, you can run the binary directly:
+
+```bash
+./lpop --help
+```
+
+Or copy it to a location in your PATH:
+
+```bash
+sudo cp lpop /usr/local/bin/
+lpop --help
+```
+
+## Development
+
+For development, you can run the CLI directly:
+
+```bash
+pnpm dev
+```
+
+Or build and run:
+
+```bash
+pnpm build
+./lpop
+```
+
+### MacOS Keychain Note:
+
+Running the CLI via pnpm registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `pnpm dev` then running `./lpop` on the same repo will prompt for password every time.
 
 ## Installation
 
@@ -11,8 +70,6 @@ pnpm install
 # Build the project
 pnpm build
 
-# Install globally (optional)
-npm install -g .
 ```
 
 ## Usage
@@ -63,6 +120,7 @@ lpop get --env staging
 ## How It Works
 
 Variables are stored in your system keychain using service names like:
+
 - `github.com/user/repo?env=development`
 - `local/directory?env=production`
 

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+lpop
 !.env.example
 .env*
 
@@ -7,7 +8,6 @@ dist/
 target/
 Cargo.lock
 **/*.rs.bk
-
 
 # OS
 .DS_Store
@@ -18,4 +18,5 @@ Thumbs.db
 temp/
 
 .history/
+.cursor/
 

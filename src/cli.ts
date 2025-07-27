@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { existsSync } from 'fs';
 import { KeychainManager } from './keychain-manager.js';
-import { GitPathResolver } from './git-path-resolver.js';
+import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { EnvFileParser, EnvEntry } from './env-file-parser.js';
 
 export class LpopCLI {
@@ -24,7 +24,7 @@ export class LpopCLI {
     // Main command with smart inference
     this.program
       .argument('[input]', 'Path to .env file, variable assignment (KEY=value), or empty for current repo')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string | undefined, options) => {
         await this.handleSmartCommand(input, options);
@@ -34,7 +34,7 @@ export class LpopCLI {
     this.program
       .command('add <input>')
       .description('Add environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string, options) => {
         await this.handleAdd(input, options);
@@ -43,7 +43,7 @@ export class LpopCLI {
     this.program
       .command('get [key]')
       .description('Get environment variables or specific variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('-o, --output <file>', 'Output to .env file')
       .action(async (key: string | undefined, options) => {
@@ -53,7 +53,7 @@ export class LpopCLI {
     this.program
       .command('update <input>')
       .description('Update environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string, options) => {
         await this.handleUpdate(input, options);
@@ -62,7 +62,7 @@ export class LpopCLI {
     this.program
       .command('remove <key>')
       .description('Remove specific environment variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (key: string, options) => {
         await this.handleRemove(key, options);
@@ -71,7 +71,7 @@ export class LpopCLI {
     this.program
       .command('clear')
       .description('Clear all environment variables for the repository/environment')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('--confirm', 'Skip confirmation prompt')
       .action(async (options) => {
@@ -145,8 +145,14 @@ export class LpopCLI {
     }
   }
 
-  private async handleGet(key: string | undefined, options: any): Promise<void> {
+  /**
+   * Get environment variables from the keychain for the current repository
+   * @param key - The key to get
+   * @param options - The options for the command
+   */
+  private async handleGet(key: string | undefined, options: { repo: string, env: string, output: string }): Promise<void> {
     const serviceName = await this.getServiceName(options);
+    console.log(chalk.blue(`Getting variables for ${serviceName} with repo ${options.repo} and env ${options.env}`));
     const keychain = new KeychainManager(serviceName);
 
     try {
@@ -239,9 +245,9 @@ export class LpopCLI {
     console.log(chalk.yellow('Use specific repo/env combinations to check for stored variables.'));
   }
 
-  private async getServiceName(options: any): Promise<string> {
+  private async getServiceName(options: { repo: string, env: string }): Promise<string> {
     if (options.repo) {
-      return `${options.repo}?env=${options.env}`;
+      return `${getServicePrefix()}${options.repo}${options.env ? `?env=${options.env}` : ''}`;
     }
 
     return await this.gitResolver.generateServiceNameAsync(options.env);

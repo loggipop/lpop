@@ -9,6 +9,17 @@ export interface GitInfo {
   full_name: string;
 }
 
+export const isDevelopment = () => {
+  // Check if running directly with bun/node (not compiled)
+  return process.argv[0].includes('bun') ||
+    process.argv[0].includes('node') ||
+    process.argv[0].includes('tsx') ||
+    !process.argv[0].includes('lpop');
+};
+
+export const getServicePrefix = () => isDevelopment() ? 'lpop-dev://' : 'lpop://';
+export const SERVICE_PREFIX = getServicePrefix();
+
 export class GitPathResolver {
   private git: SimpleGit;
 
@@ -53,26 +64,26 @@ export class GitPathResolver {
     }
   }
 
-  generateServiceName(environment: string = 'development'): string {
+  generateServiceName(environment?: string): string {
     const gitInfo = this.getGitInfoSync();
     if (gitInfo) {
-      return `${gitInfo.full_name}?env=${environment}`;
+      return `${getServicePrefix()}${gitInfo.full_name}${environment ? `?env=${environment}` : ''}`;
     }
-    
+
     // Fallback to current directory name
     const dirName = this.workingDir.split('/').pop() || 'unknown';
-    return `local/${dirName}?env=${environment}`;
+    return `${getServicePrefix()}local/${dirName}${environment ? `?env=${environment}` : ''}`;
   }
 
-  async generateServiceNameAsync(environment: string = 'development'): Promise<string> {
+  async generateServiceNameAsync(environment?: string): Promise<string> {
     const gitInfo = await this.getGitInfo();
     if (gitInfo) {
-      return `${gitInfo.full_name}?env=${environment}`;
+      return `${getServicePrefix()}${gitInfo.full_name}${environment ? `?env=${environment}` : ''}`;
     }
-    
+
     // Fallback to current directory name
     const dirName = this.workingDir.split('/').pop() || 'unknown';
-    return `local/${dirName}?env=${environment}`;
+    return `${getServicePrefix()}local/${dirName}${environment ? `?env=${environment}` : ''}`;
   }
 
   private getGitInfoSync(): GitInfo | null {
@@ -87,12 +98,16 @@ export class GitPathResolver {
     return null;
   }
 
-  static extractEnvironmentFromService(serviceName: string): string {
-    const match = serviceName.match(/\?env=([^&]+)/);
-    return match ? match[1] : 'development';
+  static extractEnvironmentFromService(serviceName: string): string | null {
+    const url = new URL(serviceName);
+    const environment = url.searchParams.get('env');
+    return environment;
   }
 
   static extractRepoFromService(serviceName: string): string {
-    return serviceName.split('?')[0];
+    const url = new URL(serviceName);
+    const org = url.hostname.split('://')[1];
+    const repo = url.pathname.split('/').slice(1)
+    return `${org}/${repo}`;
   }
 }

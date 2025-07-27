@@ -2,4 +2,20 @@ node_modules/
 dist/
 !.env.example
 .env*
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Test artifacts
+*.tmp
+temp/
+
+.history/
+

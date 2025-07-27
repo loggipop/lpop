@@ -64,6 +64,17 @@ export class GitPathResolver {
     return `local/${dirName}?env=${environment}`;
   }
 
+  generateRepoServiceName(): string {
+    const gitInfo = this.getGitInfoSync();
+    if (gitInfo) {
+      return gitInfo.full_name;
+    }
+    
+    // Fallback to current directory name
+    const dirName = this.workingDir.split('/').pop() || 'unknown';
+    return `local/${dirName}`;
+  }
+
   async generateServiceNameAsync(environment: string = 'development'): Promise<string> {
     const gitInfo = await this.getGitInfo();
     if (gitInfo) {
@@ -73,6 +84,17 @@ export class GitPathResolver {
     // Fallback to current directory name
     const dirName = this.workingDir.split('/').pop() || 'unknown';
     return `local/${dirName}?env=${environment}`;
+  }
+
+  async generateRepoServiceNameAsync(): Promise<string> {
+    const gitInfo = await this.getGitInfo();
+    if (gitInfo) {
+      return gitInfo.full_name;
+    }
+    
+    // Fallback to current directory name
+    const dirName = this.workingDir.split('/').pop() || 'unknown';
+    return `local/${dirName}`;
   }
 
   private getGitInfoSync(): GitInfo | null {

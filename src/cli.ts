@@ -26,6 +26,7 @@ export class LpopCLI {
       .argument('[input]', 'Path to .env file, variable assignment (KEY=value), or empty for current repo')
       .option('-e, --env <environment>', 'Environment name', 'development')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
+      .option('--repo-level', 'Set variables at repo level (shared across all environments)')
       .action(async (input: string | undefined, options) => {
         await this.handleSmartCommand(input, options);
       });
@@ -36,6 +37,7 @@ export class LpopCLI {
       .description('Add environment variables from file or single variable')
       .option('-e, --env <environment>', 'Environment name', 'development')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
+      .option('--repo-level', 'Set variables at repo level (shared across all environments)')
       .action(async (input: string, options) => {
         await this.handleAdd(input, options);
       });
@@ -55,6 +57,7 @@ export class LpopCLI {
       .description('Update environment variables from file or single variable')
       .option('-e, --env <environment>', 'Environment name', 'development')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
+      .option('--repo-level', 'Set variables at repo level (shared across all environments)')
       .action(async (input: string, options) => {
         await this.handleUpdate(input, options);
       });
@@ -64,6 +67,7 @@ export class LpopCLI {
       .description('Remove specific environment variable')
       .option('-e, --env <environment>', 'Environment name', 'development')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
+      .option('--repo-level', 'Remove variable at repo level')
       .action(async (key: string, options) => {
         await this.handleRemove(key, options);
       });
@@ -73,6 +77,7 @@ export class LpopCLI {
       .description('Clear all environment variables for the repository/environment')
       .option('-e, --env <environment>', 'Environment name', 'development')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
+      .option('--repo-level', 'Clear all repo-level variables')
       .option('--confirm', 'Skip confirmation prompt')
       .action(async (options) => {
         await this.handleClear(options);
@@ -120,8 +125,8 @@ export class LpopCLI {
   }
 
   private async handleAdd(input: string, options: any): Promise<void> {
+    const keychain = await this.getKeychainManager(options);
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
 
     try {
       let entries: EnvEntry[];
@@ -137,7 +142,8 @@ export class LpopCLI {
       }
 
       await keychain.setEnvironmentVariables(entries);
-      console.log(chalk.green(`✓ Added ${entries.length} variables to ${serviceName}`));
+      const level = options.repoLevel ? 'repo-level' : serviceName;
+      console.log(chalk.green(`✓ Added ${entries.length} variables to ${level}`));
 
     } catch (error) {
       console.error(chalk.red(`Error adding variables: ${error instanceof Error ? error.message : String(error)}`));
@@ -146,8 +152,8 @@ export class LpopCLI {
   }
 
   private async handleGet(key: string | undefined, options: any): Promise<void> {
+    const keychain = await this.getKeychainManager(options);
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
 
     try {
       const variables = await keychain.getEnvironmentVariables();
@@ -195,15 +201,17 @@ export class LpopCLI {
   }
 
   private async handleRemove(key: string, options: any): Promise<void> {
+    const keychain = await this.getKeychainManager(options);
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
 
     try {
       const removed = await keychain.removeEnvironmentVariable(key);
       if (removed) {
-        console.log(chalk.green(`✓ Removed variable ${key} from ${serviceName}`));
+        const level = options.repoLevel ? 'repo-level' : serviceName;
+        console.log(chalk.green(`✓ Removed variable ${key} from ${level}`));
       } else {
-        console.log(chalk.yellow(`Variable ${key} not found in ${serviceName}`));
+        const level = options.repoLevel ? 'repo-level' : serviceName;
+        console.log(chalk.yellow(`Variable ${key} not found in ${level}`));
       }
     } catch (error) {
       console.error(chalk.red(`Error removing variable: ${error instanceof Error ? error.message : String(error)}`));
@@ -212,18 +220,20 @@ export class LpopCLI {
   }
 
   private async handleClear(options: any): Promise<void> {
+    const keychain = await this.getKeychainManager(options);
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
 
     try {
       if (!options.confirm) {
-        console.log(chalk.yellow(`This will remove ALL environment variables for ${serviceName}`));
+        const level = options.repoLevel ? 'repo-level' : serviceName;
+        console.log(chalk.yellow(`This will remove ALL environment variables for ${level}`));
         console.log(chalk.yellow('Use --confirm to skip this warning'));
         return;
       }
 
       await keychain.clearAllEnvironmentVariables();
-      console.log(chalk.green(`✓ Cleared all variables for ${serviceName}`));
+      const level = options.repoLevel ? 'repo-level' : serviceName;
+      console.log(chalk.green(`✓ Cleared all variables for ${level}`));
 
     } catch (error) {
       console.error(chalk.red(`Error clearing variables: ${error instanceof Error ? error.message : String(error)}`));
@@ -240,11 +250,31 @@ export class LpopCLI {
   }
 
   private async getServiceName(options: any): Promise<string> {
-    if (options.repo) {
-      return `${options.repo}?env=${options.env}`;
+    if (options.repoLevel) {
+      if (options.repo) {
+        return options.repo;
+      }
+      return await this.gitResolver.generateRepoServiceNameAsync();
     }
 
-    return await this.gitResolver.generateServiceNameAsync(options.env);
+    if (options.repo) {
+      return `${options.repo}?env=${options.env || 'development'}`;
+    }
+
+    return await this.gitResolver.generateServiceNameAsync(options.env || 'development');
+  }
+
+  private async getKeychainManager(options: any): Promise<KeychainManager> {
+    if (options.repoLevel) {
+      // For repo-level operations, only use the repo service name
+      const repoServiceName = options.repo || await this.gitResolver.generateRepoServiceNameAsync();
+      return KeychainManager.createRepoLevel(repoServiceName);
+    }
+
+    // For environment-specific operations, create with hierarchy support
+    const envServiceName = await this.getServiceName(options);
+    const repoServiceName = options.repo || await this.gitResolver.generateRepoServiceNameAsync();
+    return KeychainManager.createWithHierarchy(envServiceName, repoServiceName);
   }
 
   public async run(): Promise<void> {

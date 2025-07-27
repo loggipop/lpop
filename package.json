@@ -1,42 +1,55 @@
 {
-  "name": "lpop",
-  "version": "1.0.0",
-  "description": "A CLI tool for managing environment variables in the system keychain",
-  "type": "module",
-  "main": "dist/index.js",
-  "bin": {
-    "lpop": "./dist/index.js"
-  },
-  "scripts": {
-    "build": "./scripts/build-binary.sh",
-    "build:js": "tsc",
-    "dev": "bun run src/index.ts",
-    "start": "bun run dist/index.js",
-    "watch": "tsc --watch"
-  },
-  "keywords": [
-    "cli",
-    "environment",
-    "variables",
-    "keychain",
-    "git"
-  ],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "@types/node": "^24.0.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
-  },
-  "dependencies": {
-    "@napi-rs/keyring": "^1.1.8",
-    "chalk": "^5.4.1",
-    "commander": "^14.0.0",
-    "dotenv": "^17.2.0",
-    "git-url-parse": "^16.1.0",
-    "simple-git": "^3.28.0"
-  },
-  "engines": {
-    "node": ">=24.0.0"
-  }
+	"name": "lpop",
+	"version": "0.1.0",
+	"description": "A CLI tool for managing environment variables in the system keychain",
+	"type": "module",
+	"bin": {
+		"lpop": "./lpop"
+	},
+	"scripts": {
+		"build": "./scripts/build-binary.sh",
+		"build:js": "tsc",
+		"dev": "bun run src/index.ts",
+		"start": "bun run dist/index.js",
+		"watch": "tsc --watch",
+		"prepack": "pnpm run build"
+	},
+	"keywords": [
+		"cli",
+		"environment",
+		"variables",
+		"keychain",
+		"git"
+	],
+	"author": "Loggipop",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/loggipop/lpop.git"
+	},
+	"bugs": {
+		"url": "https://github.com/loggipop/lpop/issues"
+	},
+	"homepage": "https://github.com/loggipop/lpop#readme",
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2"
+	},
+	"dependencies": {
+		"@napi-rs/keyring": "^1.1.8",
+		"chalk": "^5.4.1",
+		"commander": "^14.0.0",
+		"dotenv": "^17.2.0",
+		"git-url-parse": "^16.1.0",
+		"simple-git": "^3.28.0"
+	},
+	"engines": {
+		"node": ">=24.0.0"
+	},
+	"files": [
+		"lpop",
+		"README.md",
+		"LICENSE"
+	]
 }

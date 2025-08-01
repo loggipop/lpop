@@ -14,7 +14,7 @@ This CLI is be built as a standalone binary executable
 
 1. **Build the binary:**
    ```bash
-   pnpm build
+   bun build
    ```
 
 This will create a `lpop` binary file in your project root that can be distributed and run without Node.js or Bun installed.
@@ -47,28 +47,28 @@ lpop --help
 For development, you can run the CLI directly:
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 Or build and run:
 
 ```bash
-pnpm build
+bun build
 ./lpop
 ```
 
 ### MacOS Keychain Note:
 
-Running the CLI via pnpm registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `pnpm dev` then running `./lpop` on the same repo will prompt for password every time.
+Running the CLI via bun registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `bun dev` then running `./lpop` on the same repo will prompt for password every time.
 
 ## Installation
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Build the project
-pnpm build
+bun build
 
 ```
 
@@ -167,4 +167,4 @@ lpop "PORT=3000"
 ## Requirements
 
 - Node.js 24+
-- pnpm (recommended) or npm
+- bun (recommended) or npm

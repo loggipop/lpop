@@ -8,7 +8,7 @@
 		"lpop": "./dist/index.js"
 	},
 	"scripts": {
-		"build": "./scripts/build-binary.sh",
+		"build:cli": "./scripts/build-binary.sh",
 		"build:js": "tsc",
 		"dev": "bun run src/index.ts",
 		"start": "bun run dist/index.js",
@@ -26,7 +26,8 @@
 	"devDependencies": {
 		"@types/node": "^24.0.0",
 		"tsx": "^4.19.2",
-		"typescript": "^5.7.2"
+		"typescript": "^5.7.2",
+		"@types/bun": "latest"
 	},
 	"dependencies": {
 		"@napi-rs/keyring": "^1.1.8",
@@ -38,5 +39,6 @@
 	},
 	"engines": {
 		"node": ">=24.0.0"
-	}
+	},
+	"private": true
 }

@@ -6,7 +6,7 @@ export interface KeychainEntry {
 }
 
 export class KeychainManager {
-  constructor(private serviceName: string) {}
+  constructor(private serviceName: string) { }
 
   private getEntry(account: string): Entry {
     return new Entry(this.serviceName, account);

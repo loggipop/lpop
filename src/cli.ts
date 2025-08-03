@@ -247,7 +247,7 @@ export class LpopCLI {
     console.log(chalk.yellow('Use specific repo/env combinations to check for stored variables.'));
   }
 
-  private async getServiceName(options: any): Promise<string> {
+  private async getServiceName(options: { repo: string, env: string }): Promise<string> {
     if (options.repo) {
       return `${getServicePrefix()}${options.repo}`;
     }

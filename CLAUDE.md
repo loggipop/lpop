@@ -10,22 +10,22 @@ lpop is a CLI tool for managing environment variables securely in the system key
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Build the project
-pnpm build
+bun build
 
 # Run in development mode
-pnpm dev
+bun dev
 
 # Clean build artifacts
-pnpm clean
+bun clean
 
 # Watch for changes during development
-pnpm watch
+bun watch
 
 # Run the built CLI
-pnpm start
+bun start
 ```
 
 ## Architecture
@@ -40,14 +40,16 @@ pnpm start
 ### Service Name Format
 
 Variables are stored in keychain using service names like:
+
 - `github.com/user/repo?env=development`
 - `local/dirname?env=production` (fallback for non-git directories)
 
 ### Smart Command Inference
 
 The main command `lpop <input>` intelligently determines the operation:
+
 - File exists locally → add/update variables
-- Contains `=` → single variable assignment  
+- Contains `=` → single variable assignment
 - No input → get current repo's variables
 - Otherwise → attempt to restore to specified path
 
@@ -73,3 +75,7 @@ The main command `lpop <input>` intelligently determines the operation:
 - The `findCredentials()` function works natively with @napi-rs/keyring
 - Service names follow URL-like format for consistent organization
 - Smart CLI inference reduces the need for explicit commands
+
+## Development Guidelines
+
+- Use bun to build and install libraries don't use pnpm or npm

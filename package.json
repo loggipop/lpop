@@ -7,12 +7,15 @@
 		"lpop": "./lpop"
 	},
 	"scripts": {
-		"build": "./scripts/build-binary.sh",
+		"build": "bun run build:js",
+		"build:binaries": "./scripts/build-binary.sh",
 		"build:js": "tsc",
 		"dev": "bun run src/index.ts",
 		"start": "bun run dist/index.js",
 		"watch": "tsc --watch",
-		"prepack": "bun run build"
+		"clean": "rm -rf dist/ lpop lpop-*",
+		"prepack": "bun run build",
+		"postinstall": "node scripts/postinstall.js"
 	},
 	"keywords": [
 		"cli",
@@ -34,7 +37,8 @@
 	"devDependencies": {
 		"@types/node": "^24.0.0",
 		"tsx": "^4.19.2",
-		"typescript": "^5.7.2"
+		"typescript": "^5.7.2",
+		"@types/bun": "latest"
 	},
 	"dependencies": {
 		"@napi-rs/keyring": "^1.1.8",
@@ -48,7 +52,7 @@
 		"node": ">=24.0.0"
 	},
 	"files": [
-		"lpop",
+		"scripts/postinstall.js",
 		"README.md",
 		"LICENSE"
 	]

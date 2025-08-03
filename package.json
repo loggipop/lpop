@@ -1,18 +1,18 @@
 {
 	"name": "lpop",
-	"version": "1.0.0",
+	"version": "0.1.0",
 	"description": "A CLI tool for managing environment variables in the system keychain",
 	"type": "module",
-	"main": "dist/index.js",
 	"bin": {
-		"lpop": "./dist/index.js"
+		"lpop": "./lpop"
 	},
 	"scripts": {
-		"build:cli": "./scripts/build-binary.sh",
+		"build": "./scripts/build-binary.sh",
 		"build:js": "tsc",
 		"dev": "bun run src/index.ts",
 		"start": "bun run dist/index.js",
-		"watch": "tsc --watch"
+		"watch": "tsc --watch",
+		"prepack": "bun run build"
 	},
 	"keywords": [
 		"cli",
@@ -21,13 +21,20 @@
 		"keychain",
 		"git"
 	],
-	"author": "",
+	"author": "Loggipop",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/loggipop/lpop.git"
+	},
+	"bugs": {
+		"url": "https://github.com/loggipop/lpop/issues"
+	},
+	"homepage": "https://github.com/loggipop/lpop#readme",
 	"devDependencies": {
 		"@types/node": "^24.0.0",
 		"tsx": "^4.19.2",
-		"typescript": "^5.7.2",
-		"@types/bun": "latest"
+		"typescript": "^5.7.2"
 	},
 	"dependencies": {
 		"@napi-rs/keyring": "^1.1.8",
@@ -40,5 +47,9 @@
 	"engines": {
 		"node": ">=24.0.0"
 	},
-	"private": true
+	"files": [
+		"lpop",
+		"README.md",
+		"LICENSE"
+	]
 }

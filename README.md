@@ -1,56 +1,80 @@
-# lpop
+# 🍭 lpop
 
-A CLI tool for managing environment variables in the system keychain
+> **Securely manage environment variables in your system keychain** 🔐
 
-## Building as Binary Executable
+lpop stores your environment variables in the system keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service), making them secure and easy to manage across projects.
 
-This CLI is be built as a standalone binary executable
-
-#### Prerequisites
-
-- [Bun](https://bun.sh/) installed on your system
-
-#### Build Steps
-
-1. **Build the binary:**
-   ```bash
-   bun build
-   ```
-
-This will create a `lpop` binary file in your project root that can be distributed and run without Node.js or Bun installed.
-
-### Build Process
-
-The Bun build process consists of:
-
-1. **Bun compilation** with minification and optimization
-2. **Binary creation** with proper naming and permissions
-3. **Symlink creation** for easy access
-
-### Usage
-
-After building, you can run the binary directly:
+## 🚀 Installation
 
 ```bash
-./lpop --help
+# Install globally with npm
+npm install -g lpop
+
+# Or using pnpm
+pnpm add -g lpop
+
+# Or using yarn
+yarn global add lpop
 ```
 
-Or copy it to a location in your PATH:
+## 📖 How It Works
+
+lpop automatically detects your git repository and organizes variables by project and environment. For example:
+
+```
+🔐 System Keychain
+├── 📁 lpop://user/project
+│   ├── 🔑 API_KEY - repo level api key
+│   └── 🔑 SECRET_TOKEN - repo level token
+├── 📁 lpop://user/project
+│   ├── 🔑 DATABASE_URL?env=development - development database
+└── 📁 lpop://user/project
+    ├── 🔑 DATABASE_URL?env=production - production database
+
+```
+
+## 🎯 Quick Start
+
+### 1️⃣ Store your environment variables
 
 ```bash
-sudo cp lpop /usr/local/bin/
-lpop --help
+# From a .env file.
+# if it exists, variables will be synced to the system keychain
+lpop .env.local
+
+# Or add a single variable
+lpop API_KEY=secret123
 ```
 
-## Development
+### 2️⃣ Retrieve your variables
 
-For development, you can run the CLI directly:
+```bash
+# Get all variables for current repo
+lpop
+
+# Sync from the system keychain to a file if it does not exist
+# Run the same command to read or write.
+# This makes it super easy to clone or use git worktrees to work in parallel using AI
+lpop .env.local
+```
+
+### 3️⃣ Use different environments
 
 ```bash
 bun dev
 ```
 
 Or build and run:
+# Store production variables
+lpop .env.production --env production
+
+# Retrieve staging variables
+lpop --env staging
+```
+
+## 🎨 Visual Examples
+
+### 📥 Adding Variables
 
 ```bash
 bun build
@@ -62,158 +86,199 @@ bun build
 Running the CLI via bun registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `bun dev` then running `./lpop` on the same repo will prompt for password every time.
 
 ## Installation
-
-```bash
-# Install dependencies
-bun install
-
-# Build the project
-bun build
-
+$ lpop .env
 ```
 
-## Usage
+```
+📂 Reading .env file...
+🔐 Storing in: lpop://acme/app
 
-### Smart Commands
-
-The main command intelligently determines what to do based on your input:
-
-```bash
-# Get all variables for current repo
-lpop
-
-# Add/update from .env file
-lpop .env
-
-# Add/update single variable
-lpop API_KEY=secret123
-
-# Export to file (if variables exist)
-lpop output.env
+✅ Added 3 variables:
+   • DATABASE_URL
+   • API_KEY
+   • JWT_SECRET
 ```
 
-### Explicit Commands
+### 📤 Getting Variables
 
 ```bash
-# Add variables
+$ lpop
+```
+
+```
+🔐 Repository: github.com/acme/app
+🌍 Environment: development
+
+DATABASE_URL=postgresql://localhost:5432/myapp
+API_KEY=sk_live_abc123xyz
+JWT_SECRET=super-secret-key-here
+```
+
+### 🔄 Switching Environments
+
+```bash
+$ lpop --env production
+```
+
+```
+🔐 Repository: github.com/acme/app
+🌍 Environment: production
+
+DATABASE_URL=postgresql://prod.db.com:5432/app
+API_KEY=sk_prod_xyz789abc
+JWT_SECRET=production-secret-key
+```
+
+## 📚 Command Reference
+
+### 🧠 Smart Command (Recommended)
+
+lpop intelligently determines what you want to do:
+
+| Command           | What it does                       |
+| ----------------- | ---------------------------------- |
+| `lpop`            | Get all variables for current repo |
+| `lpop .env`       | Add/update variables from file     |
+| `lpop KEY=value`  | Add/update a single variable       |
+| `lpop output.env` | Export variables to file           |
+
+### 📝 Explicit Commands
+
+<details>
+<summary>Click to see all commands</summary>
+
+#### ➕ Add Variables
+
+```bash
 lpop add .env                    # From file
-lpop add "DB_URL=postgres://..."  # Single variable
+lpop add "DB_URL=postgres://..." # Single variable
+lpop add .env --env production   # To specific environment
+```
 
-# Get variables
+#### 📖 Get Variables
+
+```bash
 lpop get                         # All variables
 lpop get API_KEY                 # Specific variable
 lpop get -o backup.env           # Export to file
+lpop get --env staging           # From specific environment
+```
 
-# Update (same as add)
-lpop update .env
-lpop update "API_KEY=newsecret"
+#### 🔄 Update Variables
 
-# Remove variables
+```bash
+lpop update .env                 # From file
+lpop update "API_KEY=newsecret"  # Single variable
+```
+
+#### 🗑️ Remove Variables
+
+```bash
 lpop remove API_KEY              # Single variable
-lpop clear --confirm             # All variables
-
-# Different environments
-lpop add .env --env production
-lpop get --env staging
+lpop clear --confirm             # All variables (with confirmation)
 ```
 
-## How It Works
-
-Variables are stored in your system keychain using service names like:
-
-- `github.com/user/repo?env=development`
-- `local/directory?env=production`
-
-The tool automatically detects your git repository context, or falls back to the current directory name.
-
-### Environment-Specific Variables
-
-lpop supports two types of variable storage:
-
-**Default Variables (No Environment)**
-
-- Variables added without `--env` are stored as default values
-- These variables are loaded for **every environment** in the repository
-- Use these for shared configuration that applies across all environments
-
-**Environment-Specific Variables**
-
-- Variables added with `--env` override default values for that specific environment
-- These variables are **only loaded** when the same environment is specified
-- Use these for environment-specific configuration (e.g., different API keys per environment)
-
-**Priority System:**
-
-1. Environment-specific variables take precedence over default variables
-2. If no environment-specific variable exists, the default variable is used
-3. This allows you to have shared defaults with environment-specific overrides
-
-## Environment Variables
-
-The `.env` file format is fully supported with comment preservation:
+#### 📋 List Stored Repos
 
 ```bash
-# Database configuration
-DATABASE_URL=postgresql://localhost:5432/myapp
-API_KEY=secret123  # Your API key here
-
-# Redis settings
-REDIS_URL=redis://localhost:6379
+lpop list                        # Show all stored repositories
 ```
 
-## Examples
+</details>
 
-### Basic Usage
+## 🎯 Common Use Cases
+
+### 🔧 Development Workflow
 
 ```bash
-# Store development variables
-lpop add .env.development
+# 1. Clone a project
+git clone https://github.com/acme/project.git
+cd project
 
-# Get production variables
-lpop get --env production
+# 2. Get the development environment variables
+lpop .env.local
 
-# Copy variables between environments
-lpop get --env production -o .env.staging
-lpop add .env.staging --env staging
-
-# Quick variable updates
-lpop "DEBUG=true"
-lpop "PORT=3000"
+# 3. Start developing!
+npm run dev
 ```
 
-### Environment-Specific Examples
+### 🚢 Managing Multiple Environments
 
 ```bash
-# Add default variables (shared across all environments)
-lpop add "APP_NAME=myapp"
-lpop add "DEBUG=false"
-lpop add "PORT=3000"
+# Store different configs for each environment
+lpop .env.development --env development
+lpop .env.staging --env staging
+lpop .env.production --env production
 
-# Add environment-specific variables (override defaults)
-lpop add "DATABASE_URL=postgres://prod-db:5432/myapp" --env production
-lpop add "DATABASE_URL=postgres://dev-db:5432/myapp" --env development
-lpop add "API_KEY=prod-secret-key" --env production
-lpop add "API_KEY=dev-secret-key" --env development
-
-# Retrieve variables (environment-specific takes precedence)
-lpop get --env production
-# Returns: APP_NAME=myapp, DEBUG=false, PORT=3000, DATABASE_URL=postgres://prod-db:5432/myapp, API_KEY=prod-secret-key
-
-lpop get --env development
-# Returns: APP_NAME=myapp, DEBUG=false, PORT=3000, DATABASE_URL=postgres://dev-db:5432/myapp, API_KEY=dev-secret-key
-
-lpop get  # No environment specified
-# Returns: APP_NAME=myapp, DEBUG=false, PORT=3000 (no environment-specific variables)
+# Switch between them easily
+lpop --env development  # When developing
+lpop --env staging      # When testing
+lpop --env production   # When debugging prod
 ```
 
-## Security
+## 🔒 Security Features
 
-- Variables are stored securely in your system keychain
-- Uses native keychain APIs (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux)
-- No variables are stored in plain text files or logs
-- Git repository context prevents accidental cross-project variable sharing
+- ✅ **Encrypted Storage**: Variables are stored in your system's secure keychain
+- ✅ **No Plain Text**: Never stored in files or logs
+- ✅ **Git-Aware**: Automatically scoped to prevent cross-project leaks
+- ✅ **Access Control**: Protected by your system's authentication
 
-## Requirements
+## 🤔 FAQs
 
-- Node.js 24+
-- bun (recommended) or npm
+<details>
+<summary><strong>Where are my variables stored?</strong></summary>
+
+Variables are stored in your operating system's secure credential storage:
+
+- 🍎 **macOS**: Keychain Access
+- 🪟 **Windows**: Credential Manager
+- 🐧 **Linux**: Secret Service API (gnome-keyring, KWallet, etc.)
+</details>
+
+<details>
+<summary><strong>What happens if I'm not in a git repository?</strong></summary>
+
+lpop will use the current directory name as the project identifier. Your variables will be stored as `local/dirname?env=development`.
+
+</details>
+
+<details>
+<summary><strong>Can I share variables with my team?</strong></summary>
+
+lpop stores variables locally in your keychain. To share with your team:
+
+1. Export variables: `lpop .env.share`
+2. Share the file securely (encrypted email, password manager, etc.)
+3. Team members import: `lpop .env.share`
+</details>
+
+<details>
+<summary><strong>How do I migrate from .env files?</strong></summary>
+
+Simply run `lpop .env` in each project directory. Your existing .env files will be imported into the secure keychain.
+
+</details>
+
+## 🛠️ Troubleshooting
+
+### 🍎 macOS Keychain Prompts
+
+When switching between `pnpm dev` and the installed binary, macOS may prompt for keychain access. This is normal - the system sees them as different applications.
+
+### 🔑 Permission Denied
+
+If you get permission errors, make sure you have access to your system's keychain/credential manager.
+
+## 🤝 Contributing
+
+We love contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+**tl;dr**: Fork the repo, make your changes, and submit a pull request! 🎉
+
+## 📄 License
+
+MIT © Tom Beckenham
+
+---
+
+<p align="center">Made with 🍭 by the Loggipop team</p>

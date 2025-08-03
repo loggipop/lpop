@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { existsSync } from 'fs';
 import { KeychainManager } from './keychain-manager.js';
-import { GitPathResolver } from './git-path-resolver.js';
+import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { EnvFileParser, EnvEntry } from './env-file-parser.js';
 
 export class LpopCLI {
@@ -24,9 +24,10 @@ export class LpopCLI {
     // Main command with smart inference
     this.program
       .argument('[input]', 'Path to .env file, variable assignment (KEY=value), or empty for current repo')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string | undefined, options) => {
+      .action(async (input: string | undefined) => {
+        const options = this.program.opts();
         await this.handleSmartCommand(input, options);
       });
 
@@ -34,47 +35,52 @@ export class LpopCLI {
     this.program
       .command('add <input>')
       .description('Add environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string, options) => {
+      .action(async (input: string) => {
+        const options = this.program.opts();
         await this.handleAdd(input, options);
       });
 
     this.program
       .command('get [key]')
       .description('Get environment variables or specific variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('-o, --output <file>', 'Output to .env file')
-      .action(async (key: string | undefined, options) => {
+      .action(async (key: string | undefined) => {
+        const options = this.program.opts();
         await this.handleGet(key, options);
       });
 
     this.program
       .command('update <input>')
       .description('Update environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string, options) => {
+      .action(async (input: string) => {
+        const options = this.program.opts();
         await this.handleUpdate(input, options);
       });
 
     this.program
       .command('remove <key>')
       .description('Remove specific environment variable')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (key: string, options) => {
+      .action(async (key: string) => {
+        const options = this.program.opts();
         await this.handleRemove(key, options);
       });
 
     this.program
       .command('clear')
       .description('Clear all environment variables for the repository/environment')
-      .option('-e, --env <environment>', 'Environment name', 'development')
+      .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('--confirm', 'Skip confirmation prompt')
-      .action(async (options) => {
+      .action(async () => {
+        const options = this.program.opts();
         await this.handleClear(options);
       });
 
@@ -112,7 +118,6 @@ export class LpopCLI {
       // Treat as file path that might be stored
       console.log(chalk.blue(`Checking for stored variables...`));
       await this.handleGet(undefined, { ...options, output: input });
-
     } catch (error) {
       console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
@@ -121,7 +126,7 @@ export class LpopCLI {
 
   private async handleAdd(input: string, options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
+    const keychain = new KeychainManager(serviceName, options.env);
 
     try {
       let entries: EnvEntry[];
@@ -138,16 +143,21 @@ export class LpopCLI {
 
       await keychain.setEnvironmentVariables(entries);
       console.log(chalk.green(`✓ Added ${entries.length} variables to ${serviceName}`));
-
     } catch (error) {
       console.error(chalk.red(`Error adding variables: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
     }
   }
 
+  /**
+   * Get environment variables from the keychain for the current repository
+   * @param key - The key to get
+   * @param options - The options for the command
+   */
   private async handleGet(key: string | undefined, options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
+    console.log(chalk.blue(`Getting variables for ${serviceName} with repo ${options.repo} and env ${options.env}`));
+    const keychain = new KeychainManager(serviceName, options.env);
 
     try {
       const variables = await keychain.getEnvironmentVariables();
@@ -159,7 +169,7 @@ export class LpopCLI {
 
       if (key) {
         // Get specific variable
-        const variable = variables.find(v => v.key === key);
+        const variable = variables.find((v) => v.key === key);
         if (variable) {
           if (options.output) {
             await EnvFileParser.writeFile(options.output, [variable]);
@@ -182,7 +192,6 @@ export class LpopCLI {
           }
         }
       }
-
     } catch (error) {
       console.error(chalk.red(`Error getting variables: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
@@ -196,7 +205,7 @@ export class LpopCLI {
 
   private async handleRemove(key: string, options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
+    const keychain = new KeychainManager(serviceName, options.env);
 
     try {
       const removed = await keychain.removeEnvironmentVariable(key);
@@ -213,7 +222,7 @@ export class LpopCLI {
 
   private async handleClear(options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName);
+    const keychain = new KeychainManager(serviceName, options.env);
 
     try {
       if (!options.confirm) {
@@ -224,7 +233,6 @@ export class LpopCLI {
 
       await keychain.clearAllEnvironmentVariables();
       console.log(chalk.green(`✓ Cleared all variables for ${serviceName}`));
-
     } catch (error) {
       console.error(chalk.red(`Error clearing variables: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
@@ -241,10 +249,10 @@ export class LpopCLI {
 
   private async getServiceName(options: any): Promise<string> {
     if (options.repo) {
-      return `${options.repo}?env=${options.env}`;
+      return `${getServicePrefix()}${options.repo}`;
     }
 
-    return await this.gitResolver.generateServiceNameAsync(options.env);
+    return await this.gitResolver.generateServiceNameAsync();
   }
 
   public async run(): Promise<void> {

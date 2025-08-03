@@ -23,13 +23,13 @@ lpop automatically detects your git repository and organizes variables by projec
 
 ```
 🔐 System Keychain
-├── 📁 github.com/user/project
+├── 📁 lpop://user/project
 │   ├── 🔑 API_KEY - repo level api key
 │   └── 🔑 SECRET_TOKEN - repo level token
-├── 📁 github.com/user/project?env=development
-│   ├── 🔑 DATABASE_URL - development database
-└── 📁 github.com/user/project?env=production
-    ├── 🔑 DATABASE_URL - production database
+├── 📁 lpop://user/project
+│   ├── 🔑 DATABASE_URL?env=development - development database
+└── 📁 lpop://user/project
+    ├── 🔑 DATABASE_URL?env=production - production database
 
 ```
 
@@ -61,6 +61,10 @@ lpop .env.local
 ### 3️⃣ Use different environments
 
 ```bash
+bun dev
+```
+
+Or build and run:
 # Store production variables
 lpop .env.production --env production
 
@@ -73,12 +77,21 @@ lpop --env staging
 ### 📥 Adding Variables
 
 ```bash
+bun build
+./lpop
+```
+
+### MacOS Keychain Note:
+
+Running the CLI via bun registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `bun dev` then running `./lpop` on the same repo will prompt for password every time.
+
+## Installation
 $ lpop .env
 ```
 
 ```
 📂 Reading .env file...
-🔐 Storing in: github.com/acme/app
+🔐 Storing in: lpop://acme/app
 
 ✅ Added 3 variables:
    • DATABASE_URL

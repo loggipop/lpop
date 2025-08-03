@@ -12,7 +12,7 @@
 		"dev": "bun run src/index.ts",
 		"start": "bun run dist/index.js",
 		"watch": "tsc --watch",
-		"prepack": "pnpm run build"
+		"prepack": "bun run build"
 	},
 	"keywords": [
 		"cli",

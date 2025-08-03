@@ -14,7 +14,8 @@
 		"start": "bun run dist/index.js",
 		"watch": "tsc --watch",
 		"clean": "rm -rf dist/ lpop lpop-*",
-		"prepack": "bun run build"
+		"prepack": "bun run build",
+		"postinstall": "node scripts/postinstall.js"
 	},
 	"keywords": [
 		"cli",
@@ -51,8 +52,7 @@
 		"node": ">=24.0.0"
 	},
 	"files": [
-		"lpop",
-		"dist/",
+		"scripts/postinstall.js",
 		"README.md",
 		"LICENSE"
 	]

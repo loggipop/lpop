@@ -126,6 +126,28 @@ Variables are stored in your system keychain using service names like:
 
 The tool automatically detects your git repository context, or falls back to the current directory name.
 
+### Environment-Specific Variables
+
+lpop supports two types of variable storage:
+
+**Default Variables (No Environment)**
+
+- Variables added without `--env` are stored as default values
+- These variables are loaded for **every environment** in the repository
+- Use these for shared configuration that applies across all environments
+
+**Environment-Specific Variables**
+
+- Variables added with `--env` override default values for that specific environment
+- These variables are **only loaded** when the same environment is specified
+- Use these for environment-specific configuration (e.g., different API keys per environment)
+
+**Priority System:**
+
+1. Environment-specific variables take precedence over default variables
+2. If no environment-specific variable exists, the default variable is used
+3. This allows you to have shared defaults with environment-specific overrides
+
 ## Environment Variables
 
 The `.env` file format is fully supported with comment preservation:
@@ -141,6 +163,8 @@ REDIS_URL=redis://localhost:6379
 
 ## Examples
 
+### Basic Usage
+
 ```bash
 # Store development variables
 lpop add .env.development
@@ -155,6 +179,31 @@ lpop add .env.staging --env staging
 # Quick variable updates
 lpop "DEBUG=true"
 lpop "PORT=3000"
+```
+
+### Environment-Specific Examples
+
+```bash
+# Add default variables (shared across all environments)
+lpop add "APP_NAME=myapp"
+lpop add "DEBUG=false"
+lpop add "PORT=3000"
+
+# Add environment-specific variables (override defaults)
+lpop add "DATABASE_URL=postgres://prod-db:5432/myapp" --env production
+lpop add "DATABASE_URL=postgres://dev-db:5432/myapp" --env development
+lpop add "API_KEY=prod-secret-key" --env production
+lpop add "API_KEY=dev-secret-key" --env development
+
+# Retrieve variables (environment-specific takes precedence)
+lpop get --env production
+# Returns: APP_NAME=myapp, DEBUG=false, PORT=3000, DATABASE_URL=postgres://prod-db:5432/myapp, API_KEY=prod-secret-key
+
+lpop get --env development
+# Returns: APP_NAME=myapp, DEBUG=false, PORT=3000, DATABASE_URL=postgres://dev-db:5432/myapp, API_KEY=dev-secret-key
+
+lpop get  # No environment specified
+# Returns: APP_NAME=myapp, DEBUG=false, PORT=3000 (no environment-specific variables)
 ```
 
 ## Security

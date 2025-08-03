@@ -1,7 +1,7 @@
 import { simpleGit, SimpleGit } from 'simple-git';
 import GitUrlParse from 'git-url-parse';
 import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, basename } from 'path';
 
 export interface GitInfo {
   owner: string;
@@ -10,15 +10,11 @@ export interface GitInfo {
 }
 
 export const isDevelopment = () => {
-  // Check if running directly with bun/node (not compiled)
-  return process.argv[0].includes('bun') ||
-    process.argv[0].includes('node') ||
-    process.argv[0].includes('tsx') ||
-    !process.argv[0].includes('lpop');
+  // Check if running directly with bun/node (not compiled) - note this is not the user's "development" environment, just how we are running the CLI either compiled or through bun.
+  return basename(process.execPath) !== 'lpop';
 };
 
-export const getServicePrefix = () => isDevelopment() ? 'lpop-dev://' : 'lpop://';
-export const SERVICE_PREFIX = getServicePrefix();
+export const getServicePrefix = () => (isDevelopment() ? 'lpop-dev://' : 'lpop://');
 
 export class GitPathResolver {
   private git: SimpleGit;
@@ -39,7 +35,7 @@ export class GitPathResolver {
   async getRemoteUrl(remoteName: string = 'origin'): Promise<string | null> {
     try {
       const remotes = await this.git.getRemotes(true);
-      const remote = remotes.find(r => r.name === remoteName);
+      const remote = remotes.find((r) => r.name === remoteName);
       return remote?.refs?.fetch || null;
     } catch {
       return null;
@@ -57,45 +53,22 @@ export class GitPathResolver {
       return {
         owner: parsed.owner,
         name: parsed.name,
-        full_name: parsed.full_name
+        full_name: parsed.full_name,
       };
     } catch {
       return null;
     }
   }
 
-  generateServiceName(environment?: string): string {
-    const gitInfo = this.getGitInfoSync();
-    if (gitInfo) {
-      return `${getServicePrefix()}${gitInfo.full_name}${environment ? `?env=${environment}` : ''}`;
-    }
-
-    // Fallback to current directory name
-    const dirName = this.workingDir.split('/').pop() || 'unknown';
-    return `${getServicePrefix()}local/${dirName}${environment ? `?env=${environment}` : ''}`;
-  }
-
-  async generateServiceNameAsync(environment?: string): Promise<string> {
+  async generateServiceNameAsync(): Promise<string> {
     const gitInfo = await this.getGitInfo();
     if (gitInfo) {
-      return `${getServicePrefix()}${gitInfo.full_name}${environment ? `?env=${environment}` : ''}`;
+      return `${getServicePrefix()}${gitInfo.full_name}`;
     }
 
     // Fallback to current directory name
     const dirName = this.workingDir.split('/').pop() || 'unknown';
-    return `${getServicePrefix()}local/${dirName}${environment ? `?env=${environment}` : ''}`;
-  }
-
-  private getGitInfoSync(): GitInfo | null {
-    // Simple synchronous check for .git directory
-    const gitDir = resolve(this.workingDir, '.git');
-    if (!existsSync(gitDir)) {
-      return null;
-    }
-
-    // For now, return null to force async usage
-    // This could be enhanced with synchronous git config reading
-    return null;
+    return `${getServicePrefix()}local/${dirName}`;
   }
 
   static extractEnvironmentFromService(serviceName: string): string | null {
@@ -107,7 +80,7 @@ export class GitPathResolver {
   static extractRepoFromService(serviceName: string): string {
     const url = new URL(serviceName);
     const org = url.hostname.split('://')[1];
-    const repo = url.pathname.split('/').slice(1)
+    const repo = url.pathname.split('/').slice(1);
     return `${org}/${repo}`;
   }
 }

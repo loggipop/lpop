@@ -6,9 +6,46 @@ on:
       - 'v*'
 
 jobs:
-  build-and-release:
+  check-certificates:
     runs-on: ubuntu-latest
-    
+    outputs:
+      has-macos-cert: ${{ steps.check-macos.outputs.has-cert }}
+      has-windows-cert: ${{ steps.check-windows.outputs.has-cert }}
+      has-linux-cert: ${{ steps.check-linux.outputs.has-cert }}
+    steps:
+      - name: Check macOS certificates
+        id: check-macos
+        run: |
+          if [ -n "${{ secrets.MACOS_CERTIFICATE }}" ] && [ -n "${{ secrets.MACOS_CERTIFICATE_PASSWORD }}" ] && [ -n "${{ secrets.APPLE_ID }}" ] && [ -n "${{ secrets.APPLE_APP_PASSWORD }}" ] && [ -n "${{ secrets.APPLE_TEAM_ID }}" ]; then
+            echo "has-cert=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-cert=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Windows certificates
+        id: check-windows
+        run: |
+          if [ -n "${{ secrets.WINDOWS_CERTIFICATE }}" ] && [ -n "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" ]; then
+            echo "has-cert=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-cert=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Linux certificates
+        id: check-linux
+        run: |
+          if [ -n "${{ secrets.LINUX_CERTIFICATE }}" ]; then
+            echo "has-cert=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-cert=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-macos:
+    needs: check-certificates
+    if: needs.check-certificates.outputs.has-macos-cert == 'true'
+    runs-on: macos-latest
+    outputs:
+      artifacts: ${{ steps.build.outputs.artifacts }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,72 +58,281 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build binaries
-        run: bun run build:binaries
+      - name: Import Code-Signing Certificates
+        uses: Apple-Actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+
+      - name: Build and sign macOS binaries
+        id: build
+        run: |
+          # Build macOS binaries
+          mkdir -p dist
+          bun build src/index.ts --target=bun-darwin-x64 --compile --minify --outfile=dist/lpop-darwin-x64
+          bun build src/index.ts --target=bun-darwin-arm64 --compile --minify --outfile=dist/lpop-darwin-arm64
+          
+          # Sign the binaries
+          codesign --force --options runtime --entitlements scripts/entitlements.plist --sign "Developer ID Application" dist/lpop-darwin-x64
+          codesign --force --options runtime --entitlements scripts/entitlements.plist --sign "Developer ID Application" dist/lpop-darwin-arm64
+          
+          # Verify signatures
+          codesign --verify --verbose dist/lpop-darwin-x64
+          codesign --verify --verbose dist/lpop-darwin-arm64
+          
+          echo "artifacts=darwin-x64,darwin-arm64" >> $GITHUB_OUTPUT
+
+      - name: Notarize macOS binaries
+        run: |
+          # Create zip files for notarization (Apple requires zip/dmg format)
+          zip -j dist/lpop-darwin-x64.zip dist/lpop-darwin-x64
+          zip -j dist/lpop-darwin-arm64.zip dist/lpop-darwin-arm64
+          
+          # Submit for notarization
+          echo "Submitting darwin-x64 for notarization..."
+          xcrun notarytool submit dist/lpop-darwin-x64.zip \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait
+          
+          echo "Submitting darwin-arm64 for notarization..."
+          xcrun notarytool submit dist/lpop-darwin-arm64.zip \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait
+          
+          # Staple the notarization to the original binaries
+          echo "Stapling notarization tickets..."
+          xcrun stapler staple dist/lpop-darwin-x64
+          xcrun stapler staple dist/lpop-darwin-arm64
+          
+          # Verify notarization
+          echo "Verifying notarization..."
+          xcrun stapler validate dist/lpop-darwin-x64
+          xcrun stapler validate dist/lpop-darwin-arm64
+          
+          # Clean up zip files
+          rm dist/lpop-darwin-x64.zip dist/lpop-darwin-arm64.zip
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binaries
+          path: |
+            dist/lpop-darwin-x64
+            dist/lpop-darwin-arm64
+
+  build-windows:
+    needs: check-certificates
+    if: needs.check-certificates.outputs.has-windows-cert == 'true'
+    runs-on: windows-latest
+    outputs:
+      artifacts: ${{ steps.build.outputs.artifacts }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Import Code-Signing Certificate
+        run: |
+          echo "${{ secrets.WINDOWS_CERTIFICATE }}" | base64 -d > certificate.p12
+          Import-PfxCertificate -FilePath certificate.p12 -CertStoreLocation Cert:\LocalMachine\My -Password (ConvertTo-SecureString -String "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" -AsPlainText -Force)
+        shell: powershell
+
+      - name: Build and sign Windows binaries
+        id: build
+        run: |
+          # Build Windows binary
+          mkdir -p dist
+          bun build src/index.ts --target=bun-windows-x64 --compile --minify --outfile=dist/lpop-windows-x64.exe
+          
+          # Sign the binary
+          $cert = Get-ChildItem -Path Cert:\LocalMachine\My -CodeSigningCert | Select-Object -First 1
+          Set-AuthenticodeSignature -FilePath "dist/lpop-windows-x64.exe" -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
+          
+          # Verify signature
+          Get-AuthenticodeSignature -FilePath "dist/lpop-windows-x64.exe"
+          
+          echo "artifacts=windows-x64" >> $env:GITHUB_OUTPUT
+        shell: powershell
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: dist/lpop-windows-x64.exe
+
+  build-linux:
+    needs: check-certificates
+    if: needs.check-certificates.outputs.has-linux-cert == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      artifacts: ${{ steps.build.outputs.artifacts }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install signing tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debsigs gnupg
+
+      - name: Import GPG key for signing
+        run: |
+          echo "${{ secrets.LINUX_CERTIFICATE }}" | base64 -d | gpg --import --batch
+
+      - name: Build and sign Linux binaries
+        id: build
+        run: |
+          # Build Linux binaries
+          mkdir -p dist
+          bun build src/index.ts --target=bun-linux-x64 --compile --minify --outfile=dist/lpop-linux-x64
+          bun build src/index.ts --target=bun-linux-arm64 --compile --minify --outfile=dist/lpop-linux-arm64
+          
+          # Make binaries executable
+          chmod +x dist/lpop-linux-x64 dist/lpop-linux-arm64
+          
+          # Sign the binaries with GPG
+          gpg --armor --detach-sign dist/lpop-linux-x64
+          gpg --armor --detach-sign dist/lpop-linux-arm64
+          
+          echo "artifacts=linux-x64,linux-arm64" >> $GITHUB_OUTPUT
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: |
+            dist/lpop-linux-x64
+            dist/lpop-linux-arm64
+            dist/lpop-linux-x64.asc
+            dist/lpop-linux-arm64.asc
+
+  build-unsigned:
+    needs: check-certificates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build unsigned binaries for unsupported platforms
+        run: |
+          mkdir -p dist
+          
+          # Check which platforms need unsigned builds
+          if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" != "true" ]; then
+            echo "⚠️ Building unsigned macOS binaries (no certificates available)"
+            bun build src/index.ts --target=bun-darwin-x64 --compile --minify --outfile=dist/lpop-darwin-x64-unsigned
+            bun build src/index.ts --target=bun-darwin-arm64 --compile --minify --outfile=dist/lpop-darwin-arm64-unsigned
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" != "true" ]; then
+            echo "⚠️ Building unsigned Windows binaries (no certificates available)"
+            bun build src/index.ts --target=bun-windows-x64 --compile --minify --outfile=dist/lpop-windows-x64-unsigned.exe
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" != "true" ]; then
+            echo "⚠️ Building unsigned Linux binaries (no certificates available)"
+            bun build src/index.ts --target=bun-linux-x64 --compile --minify --outfile=dist/lpop-linux-x64-unsigned
+            bun build src/index.ts --target=bun-linux-arm64 --compile --minify --outfile=dist/lpop-linux-arm64-unsigned
+            chmod +x dist/lpop-linux-*-unsigned
+          fi
+
+      - name: Upload unsigned artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unsigned-binaries
+          path: dist/*-unsigned*
+
+  create-release:
+    needs: [check-certificates, build-macos, build-windows, build-linux, build-unsigned]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: Display downloaded artifacts
+        run: |
+          echo "📦 Downloaded artifacts:"
+          find ./artifacts -type f -exec ls -la {} \;
+
+      - name: Check platform support and create release notes
+        id: release-notes
+        run: |
+          echo "## Platform Support" > release_notes.md
+          echo "" >> release_notes.md
+          
+          if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ]; then
+            echo "✅ **macOS**: Signed and notarized binaries available" >> release_notes.md
+          else
+            echo "⚠️ **macOS**: Unsigned binaries only (certificates/notarization not configured)" >> release_notes.md
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
+            echo "✅ **Windows**: Signed binaries available" >> release_notes.md
+          else
+            echo "⚠️ **Windows**: Unsigned binaries only (certificates not configured)" >> release_notes.md
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
+            echo "✅ **Linux**: GPG signed binaries available" >> release_notes.md
+          else
+            echo "⚠️ **Linux**: Unsigned binaries only (GPG key not configured)" >> release_notes.md
+          fi
+          
+          echo "" >> release_notes.md
+          echo "## Installation" >> release_notes.md
+          echo "Download the appropriate binary for your platform from the assets below." >> release_notes.md
+          
+          cat release_notes.md
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2.3.2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          name: Release ${{ github.ref_name }}
+          body_path: release_notes.md
           draft: false
           prerelease: false
+          files: |
+            ./artifacts/*
 
-      - name: Upload Linux x64 Binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/lpop-linux-x64
-          asset_name: lpop-linux-x64
-          asset_content_type: application/octet-stream
-
-      - name: Upload Linux ARM64 Binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/lpop-linux-arm64
-          asset_name: lpop-linux-arm64
-          asset_content_type: application/octet-stream
-
-      - name: Upload macOS x64 Binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/lpop-darwin-x64
-          asset_name: lpop-darwin-x64
-          asset_content_type: application/octet-stream
-
-      - name: Upload macOS ARM64 Binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/lpop-darwin-arm64
-          asset_name: lpop-darwin-arm64
-          asset_content_type: application/octet-stream
-
-      - name: Upload Windows x64 Binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/lpop-windows-x64.exe
-          asset_name: lpop-windows-x64.exe
-          asset_content_type: application/octet-stream
 
   publish-npm:
-    needs: build-and-release
+    needs: create-release
     runs-on: ubuntu-latest
     
     steps:

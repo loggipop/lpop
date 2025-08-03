@@ -114,6 +114,58 @@ Before submitting:
    - Expected vs actual behavior
    - Your environment (OS, Node version)
 
+## 🚀 CI/CD Pipeline
+
+### Release Process
+
+lpop uses an automated CI/CD pipeline that builds and signs binaries for all platforms when a new version tag is pushed.
+
+#### **Workflow Overview:**
+
+1. **Certificate Check**: Verifies if signing certificates are available for each platform
+2. **Platform Builds**: Separate jobs for macOS, Windows, and Linux with conditional execution
+3. **Code Signing**: 
+   - **macOS**: Developer ID Application signing + Apple notarization
+   - **Windows**: Authenticode signing with timestamping
+   - **Linux**: GPG detached signatures
+4. **Fallback**: Builds unsigned binaries for platforms without certificates
+5. **Release Creation**: Automated release with platform-specific assets and status
+
+#### **Required Secrets for Full CI/CD:**
+
+See `.env.example` for complete documentation. Key secrets include:
+
+- **macOS**: `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`
+- **Windows**: `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD`  
+- **Linux**: `LINUX_CERTIFICATE` (GPG private key)
+- **NPM**: `NPM_TOKEN`
+
+#### **Platform Support Matrix:**
+
+| Platform | With Certificates | Without Certificates |
+|----------|------------------|--------------------|
+| macOS | ✅ Signed + Notarized | ⚠️ Unsigned binaries |
+| Windows | ✅ Authenticode signed | ⚠️ Unsigned binaries |
+| Linux | ✅ GPG signed | ⚠️ Unsigned binaries |
+
+#### **Triggering Releases:**
+
+```bash
+# Create and push a version tag
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The CI will automatically:
+- Build binaries for all platforms
+- Sign them if certificates are available
+- Create a GitHub release with appropriate assets
+- Publish to NPM (if `NPM_TOKEN` is configured)
+
+#### **Notarization Notes:**
+
+Apple notarization can take 2-15 minutes per binary (sometimes longer during peak times). The workflow uses `--wait` to ensure notarization completes before release creation.
+
 ## 📤 Submitting Changes
 
 ### 1. Commit Your Changes

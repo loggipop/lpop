@@ -6,7 +6,7 @@ export interface KeychainEntry {
 }
 
 export class KeychainManager {
-  constructor(private serviceName: string, private environment?: string) {}
+  constructor(private serviceName: string, private environment?: string) { }
 
   private getFullAccountName(account: string): string {
     const envString = this.environment ? `?env=${this.environment}` : '';
@@ -54,42 +54,34 @@ export class KeychainManager {
    * @returns Promise resolving to an array of credential objects with account names (without env suffix) and passwords
    */
   async findCredentials(): Promise<Array<{ account: string; password: string }>> {
-    try {
-      const credentials: Credential[] = findCredentials(this.serviceName);
+    const credentials: Credential[] = findCredentials(this.serviceName);
 
-      // Build output map directly, prioritizing environment-specific values
-      const resultMap = new Map<string, string>();
+    // Build output map directly, prioritizing environment-specific values
+    const resultMap = new Map<string, string>();
 
-      for (const { account, password } of credentials) {
-        const envMatch = account.match(/^(.+)\?env=(.+)$/);
+    for (const { account, password } of credentials) {
+      const envMatch = account.match(/^(.+)\?env=(.+)$/);
 
-        if (envMatch) {
-          // Environment-specific account
-          const baseAccount = envMatch[1];
-          const env = envMatch[2];
+      if (envMatch) {
+        // Environment-specific account
+        const baseAccount = envMatch[1];
+        const env = envMatch[2];
 
-          // Only add if it matches our target environment
-          if (this.environment && env === this.environment) {
-            resultMap.set(baseAccount, password);
-          }
-        } else {
-          // Generic account (no env suffix) - only add if not already set by environment-specific
-          if (!resultMap.has(account)) {
-            resultMap.set(account, password);
-          }
+        // Only add if it matches our target environment
+        if (this.environment && env === this.environment) {
+          resultMap.set(baseAccount, password);
+        }
+      } else {
+        // Generic account (no env suffix) - only add if not already set by environment-specific
+        if (!resultMap.has(account)) {
+          resultMap.set(account, password);
         }
       }
-
-      // Convert map to array format
-      const result: Array<{ account: string; password: string }> = [];
-      for (const [account, password] of resultMap) {
-        result.push({ account, password });
-      }
-
-      return result;
-    } catch {
-      return [];
     }
+
+    // Convert map to array format
+    return Object.entries(resultMap).map(([account, password]) => ({ account, password }));
+
   }
 
   async setEnvironmentVariables(variables: KeychainEntry[]): Promise<void> {

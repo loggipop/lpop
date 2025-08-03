@@ -47,9 +47,9 @@ export class KeychainManager {
    * - Environment-specific: `<account>?env=<environment>` (e.g., "myapp?env=prod")
    * - Generic: `<account>` (e.g., "myapp")
    *
-   * When an environment is specified in the KeychainManager constructor, the method first looks
-   * for environment-specific credentials matching that environment. If none are found, it falls
-   * back to the generic credential for that account.
+   * The method processes credentials in a single pass:
+   * 1. Environment-specific credentials matching the target environment are added/replace existing values
+   * 2. Generic credentials (without env suffix) are added only if no environment-specific value exists
    *
    * @returns Promise resolving to an array of credential objects with account names (without env suffix) and passwords
    */
@@ -57,11 +57,8 @@ export class KeychainManager {
     try {
       const credentials: Credential[] = findCredentials(this.serviceName);
 
-      // Group credentials by base account name (without env suffix)
-      const accountGroups = new Map<
-        string,
-        Array<{ account: string; password: string; isEnvSpecific: boolean; env?: string }>
-      >();
+      // Build output map directly, prioritizing environment-specific values
+      const resultMap = new Map<string, string>();
 
       for (const { account, password } of credentials) {
         const envMatch = account.match(/^(.+)\?env=(.+)$/);
@@ -70,37 +67,23 @@ export class KeychainManager {
           // Environment-specific account
           const baseAccount = envMatch[1];
           const env = envMatch[2];
-          const group = accountGroups.get(baseAccount) || [];
-          group.push({ account, password, isEnvSpecific: true, env });
-          accountGroups.set(baseAccount, group);
+
+          // Only add if it matches our target environment
+          if (this.environment && env === this.environment) {
+            resultMap.set(baseAccount, password);
+          }
         } else {
-          // Generic account (no env suffix)
-          const group = accountGroups.get(account) || [];
-          group.push({ account, password, isEnvSpecific: false });
-          accountGroups.set(account, group);
+          // Generic account (no env suffix) - only add if not already set by environment-specific
+          if (!resultMap.has(account)) {
+            resultMap.set(account, password);
+          }
         }
       }
 
-      // Process each group to prioritize environment-specific values
+      // Convert map to array format
       const result: Array<{ account: string; password: string }> = [];
-
-      for (const [baseAccount, group] of accountGroups) {
-        if (this.environment) {
-          // Look for environment-specific credential first
-          const envSpecific = group.find((item) => item.isEnvSpecific && item.env === this.environment);
-
-          if (envSpecific) {
-            // Use environment-specific value
-            result.push({ account: baseAccount, password: envSpecific.password });
-            continue;
-          }
-        }
-
-        // Fall back to generic account (no env suffix)
-        const generic = group.find((item) => !item.isEnvSpecific);
-        if (generic) {
-          result.push({ account: baseAccount, password: generic.password });
-        }
+      for (const [account, password] of resultMap) {
+        result.push({ account, password });
       }
 
       return result;

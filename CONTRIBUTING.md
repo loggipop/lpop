@@ -18,13 +18,13 @@ First off, thanks for taking the time to contribute! 🎉
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Run in development mode
-pnpm dev
+bun dev
 
 # Or build and test the binary
-pnpm build
+bun build
 ./lpop --help
 ```
 
@@ -56,10 +56,10 @@ lpop/
 ### 🛠️ Available Commands
 
 ```bash
-pnpm dev          # Run in development mode
-pnpm build        # Build binary executable
-pnpm build:js     # Build TypeScript only
-pnpm watch        # Watch for changes
+bun dev              # Run in development mode
+bun build:binaries   # Build binary executable
+bun build:js         # Build TypeScript only
+bun watch            # Watch for changes
 ```
 
 ### 📝 Code Style
@@ -74,16 +74,18 @@ pnpm watch        # Watch for changes
 Before submitting:
 
 1. **Test the CLI commands**:
+
    ```bash
    # Test basic operations
-   pnpm dev add TEST_VAR=value
-   pnpm dev get TEST_VAR
-   pnpm dev remove TEST_VAR
+   bun dev add TEST_VAR=value
+   bun dev get TEST_VAR
+   bun dev remove TEST_VAR
    ```
 
 2. **Build and test the binary**:
+
    ```bash
-   pnpm build
+   bun build
    ./lpop --help
    ```
 
@@ -124,6 +126,7 @@ git commit -m "fix: resolve issue with env parsing"
 ```
 
 **Commit Message Format**:
+
 - `feat:` New feature
 - `fix:` Bug fix
 - `docs:` Documentation changes
@@ -157,6 +160,7 @@ git push origin feature/your-feature-name
 ## 🏆 Recognition
 
 Contributors will be:
+
 - Listed in our Contributors section
 - Thanked in release notes
 - Given credit in commit messages
@@ -173,7 +177,7 @@ Contributors will be:
 
 - Development uses Bun for speed
 - Binary builds use Bun's compilation
-- Make sure changes work with both `pnpm dev` and the built binary
+- Make sure changes work with both `bun dev` and the built binary
 
 ### Keychain Notes
 

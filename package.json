@@ -7,11 +7,13 @@
 		"lpop": "./lpop"
 	},
 	"scripts": {
-		"build:cli": "./scripts/build-binary.sh",
+		"build": "bun run build:js",
+		"build:binaries": "./scripts/build-binary.sh",
 		"build:js": "tsc",
 		"dev": "bun run src/index.ts",
 		"start": "bun run dist/index.js",
 		"watch": "tsc --watch",
+		"clean": "rm -rf dist/ lpop lpop-*",
 		"prepack": "bun run build"
 	},
 	"keywords": [
@@ -50,6 +52,7 @@
 	},
 	"files": [
 		"lpop",
+		"dist/",
 		"README.md",
 		"LICENSE"
 	]

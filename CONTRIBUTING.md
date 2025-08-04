@@ -24,7 +24,7 @@ bun install
 bun dev
 
 # Or build and test the binary
-bun build
+bun run build:binaries
 ./lpop --help
 ```
 
@@ -56,10 +56,10 @@ lpop/
 ### 🛠️ Available Commands
 
 ```bash
-bun dev              # Run in development mode
-bun build:binaries   # Build binary executable
-bun build:js         # Build TypeScript only
-bun watch            # Watch for changes
+bun dev                  # Run in development mode
+bun run build:binaries   # Build binary executables for all platforms
+bun run prepare-packages # Copy binaries to platform packages and sync versions
+bun run clean           # Clean build artifacts
 ```
 
 ### 📝 Code Style
@@ -85,7 +85,7 @@ Before submitting:
 2. **Build and test the binary**:
 
    ```bash
-   bun build
+   bun run build:binaries
    ./lpop --help
    ```
 
@@ -118,22 +118,32 @@ Before submitting:
 
 ### Release Process
 
-lpop uses an automated CI/CD pipeline that builds and signs binaries for all platforms when a new version tag is pushed.
+lpop uses a Sentry-style binary distribution strategy with automated CI/CD that builds and signs binaries for all platforms when a GitHub release is created.
 
 #### **Workflow Overview:**
 
-1. **Certificate Check**: Verifies if signing certificates are available for each platform
-2. **Platform Builds**: Separate jobs for macOS, Windows, and Linux with conditional execution
-3. **Code Signing**: 
+1. **Manual Release Creation**: Create a GitHub release (e.g., `v0.1.1`)
+2. **CI Trigger**: Workflow triggers on release creation
+3. **Certificate Check**: Verifies if signing certificates are available for each platform
+4. **Platform Builds**: Separate jobs for macOS, Windows, and Linux with conditional execution
+5. **Code Signing**: 
    - **macOS**: Developer ID Application signing + Apple notarization
    - **Windows**: Authenticode signing with timestamping
    - **Linux**: GPG detached signatures
-4. **Fallback**: Builds unsigned binaries for platforms without certificates
-5. **Release Creation**: Automated release with platform-specific assets and status
+6. **Binary Upload**: Uploads signed binaries to the GitHub release
+7. **Platform Package Publishing**: Publishes platform-specific npm packages (`lpop-linux-x64`, etc.)
+8. **Main Package Publishing**: Publishes main package with correct optionalDependencies
+
+#### **Distribution Strategy:**
+
+- **Platform-specific packages**: Each platform gets its own npm package with just the signed binary
+- **Optional dependencies**: Main package references platform packages as optional dependencies
+- **Binary replacement**: Postinstall replaces Node.js wrapper with native binary for zero startup overhead
+- **Fallback download**: Downloads from GitHub releases if optional dependencies fail
 
 #### **Required Secrets for Full CI/CD:**
 
-See `.env.example` for complete documentation. Key secrets include:
+Key secrets include:
 
 - **macOS**: `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`
 - **Windows**: `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD`  
@@ -144,27 +154,25 @@ See `.env.example` for complete documentation. Key secrets include:
 
 | Platform | With Certificates | Without Certificates |
 |----------|------------------|--------------------|
-| macOS | ✅ Signed + Notarized | ⚠️ Unsigned binaries |
-| Windows | ✅ Authenticode signed | ⚠️ Unsigned binaries |
-| Linux | ✅ GPG signed | ⚠️ Unsigned binaries |
+| macOS | ✅ Signed + Notarized + npm package | ❌ Not distributed |
+| Windows | ✅ Authenticode signed + npm package | ❌ Not distributed |
+| Linux | ✅ GPG signed + npm package | ❌ Not distributed |
+
+**Note**: Only signed binaries are distributed to ensure keychain access works reliably.
 
 #### **Triggering Releases:**
 
-```bash
-# Create and push a version tag
-git tag v1.2.3
-git push origin v1.2.3
-```
+1. **Update version** in `package.json` (e.g., `0.1.0` → `0.1.1`)
+2. **Create GitHub release** manually with matching tag (e.g., `v0.1.1`)
+3. **CI runs automatically**:
+   - Builds and signs binaries for platforms with certificates
+   - Uploads binaries to the release
+   - Publishes platform-specific npm packages
+   - Publishes main npm package
 
-The CI will automatically:
-- Build binaries for all platforms
-- Sign them if certificates are available
-- Create a GitHub release with appropriate assets
-- Publish to NPM (if `NPM_TOKEN` is configured)
+#### **Version Synchronization:**
 
-#### **Notarization Notes:**
-
-Apple notarization can take 2-15 minutes per binary (sometimes longer during peak times). The workflow uses `--wait` to ensure notarization completes before release creation.
+All platform packages automatically sync to the main package version during CI, ensuring consistency across the distribution.
 
 ## 📤 Submitting Changes
 

@@ -3,7 +3,7 @@
 import { spawn } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, chmodSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = dirname(__dirname);
@@ -73,6 +73,16 @@ function getBinaryPath() {
 // Execute the binary
 try {
   const binaryPath = getBinaryPath();
+  
+  // Ensure the binary has execute permissions (fix for npm install losing +x)
+  if (process.platform !== 'win32') {
+    try {
+      chmodSync(binaryPath, 0o755);
+    } catch (err) {
+      // Ignore chmod errors - might not have permissions
+    }
+  }
+  
   const child = spawn(binaryPath, process.argv.slice(2), { 
     stdio: 'inherit',
     windowsHide: false 

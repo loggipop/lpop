@@ -247,6 +247,7 @@ jobs:
 
   publish-npm:
     needs: upload-to-release
+    if: always() && needs.upload-to-release.result == 'success'
     runs-on: ubuntu-latest
     
     steps:

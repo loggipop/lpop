@@ -1,6 +1,6 @@
 {
   "name": "lpop-darwin-x64",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "lpop binary for macOS x64",
   "os": [
     "darwin"

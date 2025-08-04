@@ -34,6 +34,22 @@ for (const { name: platform, arch } of platforms) {
   }
 }
 
+// Also update the main package.json's optionalDependencies to use current version
+console.log('📝 Updating optionalDependencies versions in main package.json...');
+if (mainPackageJson.optionalDependencies) {
+  let updated = false;
+  for (const dep in mainPackageJson.optionalDependencies) {
+    if (dep.startsWith('lpop-')) {
+      mainPackageJson.optionalDependencies[dep] = mainVersion;
+      updated = true;
+    }
+  }
+  if (updated) {
+    writeFileSync(join(packageRoot, 'package.json'), JSON.stringify(mainPackageJson, null, '\t') + '\n');
+    console.log(`✅ Updated optionalDependencies to version ${mainVersion}`);
+  }
+}
+
 console.log('📦 Copying binaries to platform packages...');
 
 for (const { name: platform, arch } of platforms) {

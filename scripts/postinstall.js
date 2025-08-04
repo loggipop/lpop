@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createWriteStream, chmodSync, existsSync, mkdirSync } from 'fs';
+import { createWriteStream, chmodSync, existsSync, mkdirSync, renameSync } from 'fs';
 import { pipeline } from 'stream/promises';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -57,15 +57,15 @@ function checkOptionalDependency() {
 }
 
 async function setupBinary() {
-  // Skip postinstall during development (when devDependencies exist)
-  try {
-    const packageJson = await import(join(packageRoot, 'package.json'), { with: { type: 'json' } });
-    if (packageJson.default.devDependencies) {
-      console.log('🔧 Development mode detected, skipping binary setup');
-      return;
-    }
-  } catch (error) {
-    // If we can't read package.json, continue with setup attempt
+  console.log('🚀 Starting lpop postinstall script...');
+  console.log(`📍 Package root: ${packageRoot}`);
+  
+  // Skip postinstall during development (when src directory exists)
+  // This is more reliable than checking devDependencies which are included in npm pack
+  const srcDir = join(packageRoot, 'src');
+  if (existsSync(srcDir)) {
+    console.log('🔧 Development mode detected (src directory exists), skipping binary setup');
+    return;
   }
 
   const { platform, arch } = getPlatformInfo();
@@ -133,21 +133,55 @@ async function setupBinary() {
   // Replace the wrapper script with the actual binary
   if (binaryPath) {
     const binLpopPath = join(packageRoot, 'bin', 'lpop');
+    console.log(`📋 Attempting to replace wrapper at: ${binLpopPath}`);
+    console.log(`📦 Using binary from: ${binaryPath}`);
+    
     try {
-      // Copy the binary to replace the wrapper
-      const sourceBuffer = require('fs').readFileSync(binaryPath);
-      require('fs').writeFileSync(binLpopPath, sourceBuffer);
+      // Check if bin directory exists
+      if (!existsSync(dirname(binLpopPath))) {
+        console.log('📁 Creating bin directory...');
+        mkdirSync(dirname(binLpopPath), { recursive: true });
+      }
+      
+      // Move the binary to replace the wrapper
+      console.log(`📏 Moving binary from ${binaryPath} to ${binLpopPath}`);
+      
+      try {
+        // First try to rename (move) which is more efficient
+        renameSync(binaryPath, binLpopPath);
+        console.log('✍️  Binary moved successfully');
+      } catch (error) {
+        // If rename fails (e.g., cross-device), fall back to copy
+        console.log('⚠️  Rename failed, falling back to copy:', error.message);
+        const { readFileSync, writeFileSync } = await import('fs');
+        const sourceBuffer = readFileSync(binaryPath);
+        writeFileSync(binLpopPath, sourceBuffer);
+        console.log('✍️  Binary copied successfully');
+        
+        // Try to remove the original
+        try {
+          const { unlinkSync } = await import('fs');
+          unlinkSync(binaryPath);
+          console.log('🗑️  Original binary removed');
+        } catch (e) {
+          console.log('⚠️  Could not remove original binary:', e.message);
+        }
+      }
       
       // Make it executable
       if (platform !== 'windows') {
         chmodSync(binLpopPath, 0o755);
+        console.log('🔐 Made binary executable');
       }
       
       console.log('🔄 Replaced wrapper script with native binary');
     } catch (error) {
       console.error('❌ Failed to replace wrapper script:', error.message);
+      console.error('Stack trace:', error.stack);
       console.error('The wrapper script will remain, but may be slower');
     }
+  } else {
+    console.log('⚠️  No binary path available, wrapper script unchanged');
   }
 }
 

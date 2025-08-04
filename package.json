@@ -1,6 +1,6 @@
 {
 	"name": "lpop",
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"description": "A CLI tool for managing environment variables in the system keychain",
 	"type": "module",
 	"bin": {
@@ -49,11 +49,11 @@
 		"node": ">=24.0.0"
 	},
 	"optionalDependencies": {
-		"lpop-linux-x64": "0.1.0",
-		"lpop-linux-arm64": "0.1.0",
-		"lpop-darwin-x64": "0.1.0",
-		"lpop-darwin-arm64": "0.1.0",
-		"lpop-windows-x64": "0.1.0"
+		"lpop-linux-x64": "*",
+		"lpop-linux-arm64": "*",
+		"lpop-darwin-x64": "*",
+		"lpop-darwin-arm64": "*",
+		"lpop-windows-x64": "*"
 	},
 	"files": [
 		"bin/lpop",

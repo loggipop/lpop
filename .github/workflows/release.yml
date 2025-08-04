@@ -246,7 +246,7 @@ jobs:
 
 
   publish-npm:
-    needs: upload-to-release
+    needs: [check-certificates, upload-to-release]
     if: always() && needs.upload-to-release.result == 'success'
     runs-on: ubuntu-latest
     
@@ -264,6 +264,19 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Remove prepack script to avoid rebuilding
+        run: |
+          # Remove prepack script since we're using pre-built signed binaries
+          node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          delete pkg.scripts.prepack;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -337,7 +350,7 @@ jobs:
             if [ -f packages/lpop-linux-x64/lpop-linux-x64 ]; then
               echo "Publishing lpop-linux-x64..."
               cd packages/lpop-linux-x64
-              npm publish --access public
+              bun publish --access public
               cd ../..
               published_count=$((published_count + 1))
             fi
@@ -345,7 +358,7 @@ jobs:
             if [ -f packages/lpop-linux-arm64/lpop-linux-arm64 ]; then
               echo "Publishing lpop-linux-arm64..."
               cd packages/lpop-linux-arm64
-              npm publish --access public
+              bun publish --access public
               cd ../..
               published_count=$((published_count + 1))
             fi
@@ -355,7 +368,7 @@ jobs:
             if [ -f packages/lpop-darwin-x64/lpop-darwin-x64 ]; then
               echo "Publishing lpop-darwin-x64..."
               cd packages/lpop-darwin-x64
-              npm publish --access public
+              bun publish --access public
               cd ../..
               published_count=$((published_count + 1))
             fi
@@ -363,7 +376,7 @@ jobs:
             if [ -f packages/lpop-darwin-arm64/lpop-darwin-arm64 ]; then
               echo "Publishing lpop-darwin-arm64..."
               cd packages/lpop-darwin-arm64
-              npm publish --access public
+              bun publish --access public
               cd ../..
               published_count=$((published_count + 1))
             fi
@@ -373,7 +386,7 @@ jobs:
             if [ -f packages/lpop-windows-x64/lpop-windows-x64.exe ]; then
               echo "Publishing lpop-windows-x64..."
               cd packages/lpop-windows-x64
-              npm publish --access public
+              bun publish --access public
               cd ../..
               published_count=$((published_count + 1))
             fi
@@ -422,6 +435,6 @@ jobs:
           "
 
       - name: Publish main package
-        run: npm publish --access public
+        run: bun publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

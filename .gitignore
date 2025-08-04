@@ -1,6 +1,7 @@
 node_modules/
 dist/
 lpop
+!bin/lpop
 .env*
 !.env.example
 
@@ -19,4 +20,7 @@ temp/
 
 .history/
 .cursor/
+
+# Platform binaries
+packages/lpop*/lpop*
 

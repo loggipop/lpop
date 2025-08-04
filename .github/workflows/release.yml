@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [created]
 
 jobs:
   check-certificates:
@@ -225,53 +224,8 @@ jobs:
             dist/lpop-linux-x64.asc
             dist/lpop-linux-arm64.asc
 
-  build-unsigned:
-    needs: check-certificates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build unsigned binaries for unsupported platforms
-        run: |
-          mkdir -p dist
-          
-          # Check which platforms need unsigned builds
-          if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" != "true" ]; then
-            echo "⚠️ Building unsigned macOS binaries (no certificates available)"
-            bun build src/index.ts --target=bun-darwin-x64 --compile --minify --outfile=dist/lpop-darwin-x64-unsigned
-            bun build src/index.ts --target=bun-darwin-arm64 --compile --minify --outfile=dist/lpop-darwin-arm64-unsigned
-          fi
-          
-          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" != "true" ]; then
-            echo "⚠️ Building unsigned Windows binaries (no certificates available)"
-            bun build src/index.ts --target=bun-windows-x64 --compile --minify --outfile=dist/lpop-windows-x64-unsigned.exe
-          fi
-          
-          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" != "true" ]; then
-            echo "⚠️ Building unsigned Linux binaries (no certificates available)"
-            bun build src/index.ts --target=bun-linux-x64 --compile --minify --outfile=dist/lpop-linux-x64-unsigned
-            bun build src/index.ts --target=bun-linux-arm64 --compile --minify --outfile=dist/lpop-linux-arm64-unsigned
-            chmod +x dist/lpop-linux-*-unsigned
-          fi
-
-      - name: Upload unsigned artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: unsigned-binaries
-          path: dist/*-unsigned*
-
-  create-release:
-    needs: [check-certificates, build-macos, build-windows, build-linux, build-unsigned]
+  upload-to-release:
+    needs: [check-certificates, build-macos, build-windows, build-linux]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -289,50 +243,16 @@ jobs:
           echo "📦 Downloaded artifacts:"
           find ./artifacts -type f -exec ls -la {} \;
 
-      - name: Check platform support and create release notes
-        id: release-notes
-        run: |
-          echo "## Platform Support" > release_notes.md
-          echo "" >> release_notes.md
-          
-          if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ]; then
-            echo "✅ **macOS**: Signed and notarized binaries available" >> release_notes.md
-          else
-            echo "⚠️ **macOS**: Unsigned binaries only (certificates/notarization not configured)" >> release_notes.md
-          fi
-          
-          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
-            echo "✅ **Windows**: Signed binaries available" >> release_notes.md
-          else
-            echo "⚠️ **Windows**: Unsigned binaries only (certificates not configured)" >> release_notes.md
-          fi
-          
-          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
-            echo "✅ **Linux**: GPG signed binaries available" >> release_notes.md
-          else
-            echo "⚠️ **Linux**: Unsigned binaries only (GPG key not configured)" >> release_notes.md
-          fi
-          
-          echo "" >> release_notes.md
-          echo "## Installation" >> release_notes.md
-          echo "Download the appropriate binary for your platform from the assets below." >> release_notes.md
-          
-          cat release_notes.md
-
-      - name: Create Release
-        id: create_release
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v2.3.2
         with:
-          name: Release ${{ github.ref_name }}
-          body_path: release_notes.md
-          draft: false
-          prerelease: false
           files: |
             ./artifacts/*
+          fail_on_unmatched_files: false
 
 
   publish-npm:
-    needs: create-release
+    needs: upload-to-release
     runs-on: ubuntu-latest
     
     steps:
@@ -345,10 +265,168 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Install dependencies
-        run: npm install --production
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-      - name: Publish to npm
-        run: npm publish
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./dist
+
+      - name: Display downloaded binaries
+        run: |
+          echo "📦 Downloaded binaries for packaging:"
+          ls -la ./dist/
+
+      - name: Sync version numbers from main package
+        run: |
+          # Get version from main package.json
+          MAIN_VERSION=$(node -e "console.log(require('./package.json').version)")
+          echo "Main package version: $MAIN_VERSION"
+          
+          # Update all platform package versions
+          for pkg in packages/lpop-*/package.json; do
+            echo "Updating version in $pkg to $MAIN_VERSION"
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync('$pkg', 'utf8'));
+              pkg.version = '$MAIN_VERSION';
+              fs.writeFileSync('$pkg', JSON.stringify(pkg, null, 2));
+            "
+          done
+
+      - name: Copy signed binaries to platform packages
+        run: |
+          # Only copy binaries that were successfully signed
+          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ] && [ -f dist/lpop-linux-x64 ]; then
+            echo "Copying signed Linux x64 binary"
+            cp dist/lpop-linux-x64 packages/lpop-linux-x64/
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ] && [ -f dist/lpop-linux-arm64 ]; then
+            echo "Copying signed Linux arm64 binary"
+            cp dist/lpop-linux-arm64 packages/lpop-linux-arm64/
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ] && [ -f dist/lpop-darwin-x64 ]; then
+            echo "Copying signed macOS x64 binary"
+            cp dist/lpop-darwin-x64 packages/lpop-darwin-x64/
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ] && [ -f dist/lpop-darwin-arm64 ]; then
+            echo "Copying signed macOS arm64 binary"
+            cp dist/lpop-darwin-arm64 packages/lpop-darwin-arm64/
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ] && [ -f dist/lpop-windows-x64.exe ]; then
+            echo "Copying signed Windows x64 binary"
+            cp dist/lpop-windows-x64.exe packages/lpop-windows-x64/
+          fi
+          
+          echo "Platform packages with signed binaries:"
+          for pkg in packages/lpop-*/; do
+            if [ -f "$pkg/lpop-"* ]; then
+              echo "  - $(basename $pkg)"
+            fi
+          done
+
+      - name: Publish platform-specific packages with signed binaries
+        run: |
+          # Only publish packages that have signed binaries
+          published_count=0
+          
+          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
+            if [ -f packages/lpop-linux-x64/lpop-linux-x64 ]; then
+              echo "Publishing lpop-linux-x64..."
+              cd packages/lpop-linux-x64
+              npm publish --access public
+              cd ../..
+              published_count=$((published_count + 1))
+            fi
+            
+            if [ -f packages/lpop-linux-arm64/lpop-linux-arm64 ]; then
+              echo "Publishing lpop-linux-arm64..."
+              cd packages/lpop-linux-arm64
+              npm publish --access public
+              cd ../..
+              published_count=$((published_count + 1))
+            fi
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ]; then
+            if [ -f packages/lpop-darwin-x64/lpop-darwin-x64 ]; then
+              echo "Publishing lpop-darwin-x64..."
+              cd packages/lpop-darwin-x64
+              npm publish --access public
+              cd ../..
+              published_count=$((published_count + 1))
+            fi
+            
+            if [ -f packages/lpop-darwin-arm64/lpop-darwin-arm64 ]; then
+              echo "Publishing lpop-darwin-arm64..."
+              cd packages/lpop-darwin-arm64
+              npm publish --access public
+              cd ../..
+              published_count=$((published_count + 1))
+            fi
+          fi
+          
+          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
+            if [ -f packages/lpop-windows-x64/lpop-windows-x64.exe ]; then
+              echo "Publishing lpop-windows-x64..."
+              cd packages/lpop-windows-x64
+              npm publish --access public
+              cd ../..
+              published_count=$((published_count + 1))
+            fi
+          fi
+          
+          echo "Published $published_count platform packages with signed binaries"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Update package.json with available platform packages
+        run: |
+          # Create a temporary package.json with only the available platform packages
+          node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const optDeps = {};
+          
+          if ('${{ needs.check-certificates.outputs.has-linux-cert }}' === 'true') {
+            if (fs.existsSync('packages/lpop-linux-x64/lpop-linux-x64')) {
+              optDeps['lpop-linux-x64'] = pkg.version;
+            }
+            if (fs.existsSync('packages/lpop-linux-arm64/lpop-linux-arm64')) {
+              optDeps['lpop-linux-arm64'] = pkg.version;
+            }
+          }
+          
+          if ('${{ needs.check-certificates.outputs.has-macos-cert }}' === 'true') {
+            if (fs.existsSync('packages/lpop-darwin-x64/lpop-darwin-x64')) {
+              optDeps['lpop-darwin-x64'] = pkg.version;
+            }
+            if (fs.existsSync('packages/lpop-darwin-arm64/lpop-darwin-arm64')) {
+              optDeps['lpop-darwin-arm64'] = pkg.version;
+            }
+          }
+          
+          if ('${{ needs.check-certificates.outputs.has-windows-cert }}' === 'true') {
+            if (fs.existsSync('packages/lpop-windows-x64/lpop-windows-x64.exe')) {
+              optDeps['lpop-windows-x64'] = pkg.version;
+            }
+          }
+          
+          pkg.optionalDependencies = optDeps;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          
+          console.log('Updated optionalDependencies:', optDeps);
+          "
+
+      - name: Publish main package
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

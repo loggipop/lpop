@@ -1,0 +1,93 @@
+#!/usr/bin/env node
+
+import { spawn } from 'child_process';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const packageRoot = dirname(__dirname);
+
+function getPlatformInfo() {
+  const platform = process.platform;
+  const arch = process.arch;
+  
+  let platformName;
+  let archName;
+  
+  switch (platform) {
+    case 'darwin':
+      platformName = 'darwin';
+      break;
+    case 'linux':
+      platformName = 'linux';
+      break;
+    case 'win32':
+      platformName = 'windows';
+      break;
+    default:
+      throw new Error(`Unsupported platform: ${platform}`);
+  }
+  
+  switch (arch) {
+    case 'x64':
+      archName = 'x64';
+      break;
+    case 'arm64':
+      archName = 'arm64';
+      break;
+    default:
+      throw new Error(`Unsupported architecture: ${arch}`);
+  }
+  
+  return { platform: platformName, arch: archName };
+}
+
+function getBinaryPath() {
+  const { platform, arch } = getPlatformInfo();
+  const target = `${platform}-${arch}`;
+  const packageName = `lpop-${target}`;
+  const binaryName = platform === 'windows' ? `lpop-${target}.exe` : `lpop-${target}`;
+  
+  // First try to find the binary from optional dependency
+  const optionalDepPath = join(packageRoot, 'node_modules', packageName, binaryName);
+  if (existsSync(optionalDepPath)) {
+    return optionalDepPath;
+  }
+  
+  // Fallback: try the dist directory (for postinstall downloaded binary)
+  const distPath = join(packageRoot, 'dist', binaryName);
+  if (existsSync(distPath)) {
+    return distPath;
+  }
+  
+  // Fallback: current platform binary in root (development)
+  const rootPath = join(packageRoot, platform === 'windows' ? 'lpop.exe' : 'lpop');
+  if (existsSync(rootPath)) {
+    return rootPath;
+  }
+  
+  throw new Error(`lpop binary not found for ${platform}-${arch}. Please reinstall lpop.`);
+}
+
+// Execute the binary
+try {
+  const binaryPath = getBinaryPath();
+  const child = spawn(binaryPath, process.argv.slice(2), { 
+    stdio: 'inherit',
+    windowsHide: false 
+  });
+
+  child.on('exit', (code) => {
+    process.exit(code || 0);
+  });
+
+  child.on('error', (err) => {
+    console.error(`Failed to start lpop: ${err.message}`);
+    process.exit(1);
+  });
+} catch (err) {
+  console.error(`Error: ${err.message}`);
+  console.error('Please try reinstalling lpop: npm install lpop');
+  process.exit(1);
+}

@@ -1,0 +1,20 @@
+{
+  "name": "lpop-linux-x64",
+  "version": "0.1.0",
+  "description": "lpop binary for Linux x64",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "lpop-linux-x64",
+  "files": [
+    "lpop-linux-x64"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loggipop/lpop.git"
+  }
+}

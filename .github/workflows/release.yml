@@ -74,15 +74,15 @@ jobs:
           mkdir -p dist
           bun build src/index.ts --target=bun-darwin-x64 --compile --minify --outfile=dist/lpop-darwin-x64
           bun build src/index.ts --target=bun-darwin-arm64 --compile --minify --outfile=dist/lpop-darwin-arm64
-          
+
           # Sign the binaries
           codesign --force --options runtime --entitlements scripts/entitlements.plist --sign "Developer ID Application" dist/lpop-darwin-x64
           codesign --force --options runtime --entitlements scripts/entitlements.plist --sign "Developer ID Application" dist/lpop-darwin-arm64
-          
+
           # Verify signatures
           codesign --verify --verbose dist/lpop-darwin-x64
           codesign --verify --verbose dist/lpop-darwin-arm64
-          
+
           echo "artifacts=darwin-x64,darwin-arm64" >> $GITHUB_OUTPUT
 
       - name: Notarize macOS binaries
@@ -90,7 +90,7 @@ jobs:
           # Create zip files for notarization (Apple requires zip/dmg format)
           zip -j dist/lpop-darwin-x64.zip dist/lpop-darwin-x64
           zip -j dist/lpop-darwin-arm64.zip dist/lpop-darwin-arm64
-          
+
           # Submit for notarization
           echo "Submitting darwin-x64 for notarization..."
           xcrun notarytool submit dist/lpop-darwin-x64.zip \
@@ -98,14 +98,14 @@ jobs:
             --password "${{ secrets.APPLE_APP_PASSWORD }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
             --wait
-          
+
           echo "Submitting darwin-arm64 for notarization..."
           xcrun notarytool submit dist/lpop-darwin-arm64.zip \
             --apple-id "${{ secrets.APPLE_ID }}" \
             --password "${{ secrets.APPLE_APP_PASSWORD }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
             --wait
-          
+
           # Clean up zip files
           rm dist/lpop-darwin-x64.zip dist/lpop-darwin-arm64.zip
 
@@ -147,14 +147,14 @@ jobs:
           # Build Windows binary
           mkdir -p dist
           bun build src/index.ts --target=bun-windows-x64 --compile --minify --outfile=dist/lpop-windows-x64.exe
-          
+
           # Sign the binary
           $cert = Get-ChildItem -Path Cert:\LocalMachine\My -CodeSigningCert | Select-Object -First 1
           Set-AuthenticodeSignature -FilePath "dist/lpop-windows-x64.exe" -Certificate $cert -TimestampServer "http://timestamp.digicert.com"
-          
+
           # Verify signature
           Get-AuthenticodeSignature -FilePath "dist/lpop-windows-x64.exe"
-          
+
           echo "artifacts=windows-x64" >> $env:GITHUB_OUTPUT
         shell: powershell
 
@@ -198,14 +198,14 @@ jobs:
           mkdir -p dist
           bun build src/index.ts --target=bun-linux-x64 --compile --minify --outfile=dist/lpop-linux-x64
           bun build src/index.ts --target=bun-linux-arm64 --compile --minify --outfile=dist/lpop-linux-arm64
-          
+
           # Make binaries executable
           chmod +x dist/lpop-linux-x64 dist/lpop-linux-arm64
-          
+
           # Sign the binaries with GPG
           gpg --armor --detach-sign dist/lpop-linux-x64
           gpg --armor --detach-sign dist/lpop-linux-arm64
-          
+
           echo "artifacts=linux-x64,linux-arm64" >> $GITHUB_OUTPUT
 
       - name: Upload Linux artifacts
@@ -244,21 +244,14 @@ jobs:
             ./artifacts/*
           fail_on_unmatched_files: false
 
-
   publish-npm:
     needs: [check-certificates, upload-to-release]
     if: always() && needs.upload-to-release.result == 'success'
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -267,6 +260,13 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      - name: Verify npm token permissions
+        run: |
+          echo "Checking npm authentication..."
+          bun pm whoami
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Remove prepack script to avoid rebuilding
         run: |
@@ -294,7 +294,7 @@ jobs:
           # Get version from main package.json
           MAIN_VERSION=$(node -e "console.log(require('./package.json').version)")
           echo "Main package version: $MAIN_VERSION"
-          
+
           # Update all platform package versions
           for pkg in packages/lpop-*/package.json; do
             echo "Updating version in $pkg to $MAIN_VERSION"
@@ -313,27 +313,27 @@ jobs:
             echo "Copying signed Linux x64 binary"
             cp dist/lpop-linux-x64 packages/lpop-linux-x64/
           fi
-          
+
           if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ] && [ -f dist/lpop-linux-arm64 ]; then
             echo "Copying signed Linux arm64 binary"
             cp dist/lpop-linux-arm64 packages/lpop-linux-arm64/
           fi
-          
+
           if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ] && [ -f dist/lpop-darwin-x64 ]; then
             echo "Copying signed macOS x64 binary"
             cp dist/lpop-darwin-x64 packages/lpop-darwin-x64/
           fi
-          
+
           if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ] && [ -f dist/lpop-darwin-arm64 ]; then
             echo "Copying signed macOS arm64 binary"
             cp dist/lpop-darwin-arm64 packages/lpop-darwin-arm64/
           fi
-          
+
           if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ] && [ -f dist/lpop-windows-x64.exe ]; then
             echo "Copying signed Windows x64 binary"
             cp dist/lpop-windows-x64.exe packages/lpop-windows-x64/
           fi
-          
+
           echo "Platform packages with signed binaries:"
           for pkg in packages/lpop-*/; do
             if [ -f "$pkg/lpop-"* ]; then
@@ -345,7 +345,7 @@ jobs:
         run: |
           # Only publish packages that have signed binaries
           published_count=0
-          
+
           if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
             if [ -f packages/lpop-linux-x64/lpop-linux-x64 ]; then
               echo "Publishing lpop-linux-x64..."
@@ -363,7 +363,7 @@ jobs:
               published_count=$((published_count + 1))
             fi
           fi
-          
+
           if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ]; then
             if [ -f packages/lpop-darwin-x64/lpop-darwin-x64 ]; then
               echo "Publishing lpop-darwin-x64..."
@@ -381,7 +381,7 @@ jobs:
               published_count=$((published_count + 1))
             fi
           fi
-          
+
           if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
             if [ -f packages/lpop-windows-x64/lpop-windows-x64.exe ]; then
               echo "Publishing lpop-windows-x64..."
@@ -391,7 +391,7 @@ jobs:
               published_count=$((published_count + 1))
             fi
           fi
-          
+
           echo "Published $published_count platform packages with signed binaries"
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -403,7 +403,7 @@ jobs:
           const fs = require('fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           const optDeps = {};
-          
+
           if ('${{ needs.check-certificates.outputs.has-linux-cert }}' === 'true') {
             if (fs.existsSync('packages/lpop-linux-x64/lpop-linux-x64')) {
               optDeps['lpop-linux-x64'] = pkg.version;
@@ -412,7 +412,7 @@ jobs:
               optDeps['lpop-linux-arm64'] = pkg.version;
             }
           }
-          
+
           if ('${{ needs.check-certificates.outputs.has-macos-cert }}' === 'true') {
             if (fs.existsSync('packages/lpop-darwin-x64/lpop-darwin-x64')) {
               optDeps['lpop-darwin-x64'] = pkg.version;
@@ -421,16 +421,16 @@ jobs:
               optDeps['lpop-darwin-arm64'] = pkg.version;
             }
           }
-          
+
           if ('${{ needs.check-certificates.outputs.has-windows-cert }}' === 'true') {
             if (fs.existsSync('packages/lpop-windows-x64/lpop-windows-x64.exe')) {
               optDeps['lpop-windows-x64'] = pkg.version;
             }
           }
-          
+
           pkg.optionalDependencies = optDeps;
           fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          
+
           console.log('Updated optionalDependencies:', optDeps);
           "
 

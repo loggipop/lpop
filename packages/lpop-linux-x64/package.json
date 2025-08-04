@@ -1,6 +1,6 @@
 {
   "name": "lpop-linux-x64",
-  "version": "0.1.7",
+  "version": "0.1.10",
   "description": "lpop binary for Linux x64",
   "os": [
     "linux"

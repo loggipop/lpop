@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { KeychainManager } from './keychain-manager.js';
 import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { EnvFileParser, EnvEntry } from './env-file-parser.js';
+import packageJson from '../package.json' with { type: 'json' };
 
 export class LpopCLI {
   private program: Command;
@@ -19,7 +20,7 @@ export class LpopCLI {
     this.program
       .name('lpop')
       .description('CLI tool for managing environment variables in the system keychain')
-      .version('1.0.0');
+      .version(packageJson.version);
 
     // Main command with smart inference
     this.program

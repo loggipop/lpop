@@ -104,8 +104,38 @@ jobs:
           
           # Staple the notarization to the original binaries
           echo "Stapling notarization tickets..."
-          xcrun stapler staple dist/lpop-darwin-x64
-          xcrun stapler staple dist/lpop-darwin-arm64
+          
+          # Wait a bit for tickets to be available
+          sleep 30
+          
+          # Staple with retry logic
+          for i in {1..3}; do
+            echo "Attempting to staple darwin-x64 (attempt $i/3)..."
+            if xcrun stapler staple dist/lpop-darwin-x64; then
+              echo "Successfully stapled darwin-x64"
+              break
+            elif [ $i -eq 3 ]; then
+              echo "Failed to staple darwin-x64 after 3 attempts"
+              exit 1
+            else
+              echo "Stapling failed, waiting 60 seconds before retry..."
+              sleep 60
+            fi
+          done
+          
+          for i in {1..3}; do
+            echo "Attempting to staple darwin-arm64 (attempt $i/3)..."
+            if xcrun stapler staple dist/lpop-darwin-arm64; then
+              echo "Successfully stapled darwin-arm64"
+              break
+            elif [ $i -eq 3 ]; then
+              echo "Failed to staple darwin-arm64 after 3 attempts"
+              exit 1
+            else
+              echo "Stapling failed, waiting 60 seconds before retry..."
+              sleep 60
+            fi
+          done
           
           # Verify notarization
           echo "Verifying notarization..."

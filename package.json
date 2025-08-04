@@ -1,20 +1,17 @@
 {
 	"name": "lpop",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "A CLI tool for managing environment variables in the system keychain",
 	"type": "module",
 	"bin": {
-		"lpop": "./lpop"
+		"lpop": "./bin/lpop"
 	},
 	"scripts": {
-		"build": "bun run build:js",
 		"build:binaries": "./scripts/build-binary.sh",
-		"build:js": "tsc",
+		"prepare-packages": "node scripts/prepare-packages.js",
 		"dev": "bun run src/index.ts",
-		"start": "bun run dist/index.js",
-		"watch": "tsc --watch",
 		"clean": "rm -rf dist/ lpop lpop-*",
-		"prepack": "bun run build",
+		"prepack": "bun run build:binaries && bun run prepare-packages",
 		"postinstall": "node scripts/postinstall.js"
 	},
 	"keywords": [
@@ -51,7 +48,15 @@
 	"engines": {
 		"node": ">=24.0.0"
 	},
+	"optionalDependencies": {
+		"lpop-linux-x64": "0.1.0",
+		"lpop-linux-arm64": "0.1.0",
+		"lpop-darwin-x64": "0.1.0",
+		"lpop-darwin-arm64": "0.1.0",
+		"lpop-windows-x64": "0.1.0"
+	},
 	"files": [
+		"bin/lpop",
 		"scripts/postinstall.js",
 		"README.md",
 		"LICENSE"

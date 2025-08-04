@@ -9,12 +9,6 @@ lpop stores your environment variables in the system keychain (macOS Keychain, W
 ```bash
 # Install globally with npm
 npm install -g lpop
-
-# Or using pnpm
-pnpm add -g lpop
-
-# Or using yarn
-yarn global add lpop
 ```
 
 ## 📖 How It Works
@@ -65,12 +59,16 @@ bun dev
 ```
 
 Or build and run:
+
 # Store production variables
+
 lpop .env.production --env production
 
 # Retrieve staging variables
+
 lpop --env staging
-```
+
+````
 
 ## 🎨 Visual Examples
 
@@ -79,31 +77,35 @@ lpop --env staging
 ```bash
 bun build
 ./lpop
-```
+````
 
 ### MacOS Keychain Note:
 
 Running the CLI via bun registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `bun dev` then running `./lpop` on the same repo will prompt for password every time.
 
 ## Installation
+
 $ lpop .env
+
 ```
 
 ```
+
 📂 Reading .env file...
 🔐 Storing in: lpop://acme/app
 
 ✅ Added 3 variables:
-   • DATABASE_URL
-   • API_KEY
-   • JWT_SECRET
-```
+• DATABASE_URL
+• API_KEY
+• JWT_SECRET
+
+````
 
 ### 📤 Getting Variables
 
 ```bash
 $ lpop
-```
+````
 
 ```
 🔐 Repository: github.com/acme/app

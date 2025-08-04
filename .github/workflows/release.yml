@@ -394,7 +394,7 @@ jobs:
           
           echo "Published $published_count platform packages with signed binaries"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Update package.json with available platform packages
         run: |
@@ -437,4 +437,4 @@ jobs:
       - name: Publish main package
         run: bun publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}

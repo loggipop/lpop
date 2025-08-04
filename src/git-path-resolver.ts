@@ -11,7 +11,18 @@ export interface GitInfo {
 
 export const isDevelopment = () => {
   // Check if running directly with bun/node (not compiled) - note this is not the user's "development" environment, just how we are running the CLI either compiled or through bun.
-  return basename(process.execPath) !== 'lpop';
+  // When running as compiled binary directly, execPath ends with 'lpop'
+  if (basename(process.execPath).startsWith('lpop')) {
+    return false;
+  }
+
+  // When running through npm/node_modules (production install), argv[1] contains node_modules
+  if (process.argv[1] && process.argv[1].includes('node_modules')) {
+    return false;
+  }
+
+  // Otherwise we're in development (running with bun/node from source)
+  return true;
 };
 
 export const getServicePrefix = () => (isDevelopment() ? 'lpop-dev://' : 'lpop://');

@@ -1,16 +1,16 @@
 import { describe, expect, test, beforeEach, afterEach, mock, spyOn } from 'bun:test'
 import { LpopCLI } from './cli'
-import { KeychainManager } from './keychain-manager'
+import { KeychainEntry, KeychainManager } from './keychain-manager'
 import { GitPathResolver, getServicePrefix } from './git-path-resolver'
 import { EnvFileParser, ParsedEnvFile } from './env-file-parser'
 import { existsSync } from 'fs'
 
 // Mock modules
 const mockKeychainManager = {
-  setEnvironmentVariables: mock(() => Promise.resolve()),
-  getEnvironmentVariables: mock(() => Promise.resolve([])),
-  removeEnvironmentVariable: mock(() => Promise.resolve(true)),
-  clearAllEnvironmentVariables: mock(() => Promise.resolve()),
+  setEnvironmentVariables: mock<typeof KeychainManager.prototype.setEnvironmentVariables>((variables: KeychainEntry[]): Promise<void> => Promise.resolve()),
+  getEnvironmentVariables: mock<typeof KeychainManager.prototype.getEnvironmentVariables>(() => Promise.resolve([])),
+  removeEnvironmentVariable: mock<typeof KeychainManager.prototype.removeEnvironmentVariable>((key: string) => Promise.resolve(true)),
+  clearAllEnvironmentVariables: mock<typeof KeychainManager.prototype.clearAllEnvironmentVariables>(() => Promise.resolve()),
 }
 
 const mockGitResolver = {
@@ -20,7 +20,7 @@ const mockGitResolver = {
 const mockExistsSync = mock(() => false)
 
 mock.module('./keychain-manager', () => ({
-  KeychainManager: mock((): KeychainManager => mockKeychainManager as any),
+  KeychainManager: mock(() => mockKeychainManager),
 }))
 
 mock.module('./git-path-resolver', () => ({

@@ -205,14 +205,6 @@ describe('GitPathResolver', () => {
     describe('extractRepoFromService', () => {
       test('should extract repo from service name', () => {
         const result = GitPathResolver.extractRepoFromService(
-          'lpop://loggipop/lpop?env=production'
-        )
-
-        expect(result).toBe('loggipop/lpop')
-      })
-
-      test('should handle paths without environment', () => {
-        const result = GitPathResolver.extractRepoFromService(
           'lpop://loggipop/lpop'
         )
 

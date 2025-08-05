@@ -56,8 +56,8 @@ export class KeychainManager {
   async findCredentials(): Promise<Array<{ account: string; password: string }>> {
     const credentials: Credential[] = findCredentials(this.serviceName);
 
-    // Build output map directly, prioritizing environment-specific values
-    const resultMap = new Map<string, string>();
+    // Create a record as it's more efficient than a map in this case
+    const credentialObj: Record<string, string> = {};
 
     for (const { account, password } of credentials) {
       const envMatch = account.match(/^(.+)\?env=(.+)$/);
@@ -69,18 +69,18 @@ export class KeychainManager {
 
         // Only add if it matches our target environment
         if (this.environment && env === this.environment) {
-          resultMap.set(baseAccount, password);
+          credentialObj[baseAccount] = password;
         }
       } else {
         // Generic account (no env suffix) - only add if not already set by environment-specific
-        if (!resultMap.has(account)) {
-          resultMap.set(account, password);
+        if (!credentialObj[account]) {
+          credentialObj[account] = password;
         }
       }
     }
 
     // Convert map to array format
-    return Object.entries(resultMap).map(([account, password]) => ({ account, password }));
+    return Object.entries(credentialObj).map(([account, password]) => ({ account, password }));
 
   }
 

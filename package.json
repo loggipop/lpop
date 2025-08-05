@@ -12,7 +12,10 @@
 		"dev": "bun run src/index.ts",
 		"clean": "rm -rf dist/ lpop lpop-*",
 		"prepack": "bun run build:binaries && bun run prepare-packages",
-		"postinstall": "node scripts/postinstall.js"
+		"postinstall": "node scripts/postinstall.js",
+		"test": "bun test",
+		"test:watch": "bun test --watch",
+		"test:coverage": "bun test --coverage"
 	},
 	"keywords": [
 		"cli",
@@ -32,10 +35,10 @@
 	},
 	"homepage": "https://github.com/loggipop/lpop#readme",
 	"devDependencies": {
+		"@types/bun": "latest",
 		"@types/node": "^24.0.0",
 		"tsx": "^4.19.2",
-		"typescript": "^5.7.2",
-		"@types/bun": "latest"
+		"typescript": "^5.7.2"
 	},
 	"dependencies": {
 		"@napi-rs/keyring": "^1.1.8",

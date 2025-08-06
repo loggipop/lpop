@@ -42,7 +42,16 @@ jobs:
           echo "Installing dependencies..."
           bun install --verbose
 
-      - name: Check installed packages
+      - name: Check installed packages (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo "Checking if @napi-rs/keyring is installed:"
+          if (Test-Path "node_modules/@napi-rs/") { Get-ChildItem "node_modules/@napi-rs/" } else { echo "@napi-rs directory not found" }
+          if (Test-Path "node_modules/@napi-rs/keyring/") { Get-ChildItem "node_modules/@napi-rs/keyring/" } else { echo "keyring package not found" }
+        shell: pwsh
+
+      - name: Check installed packages (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
           echo "Checking if @napi-rs/keyring is installed:"
           ls -la node_modules/@napi-rs/ || echo "@napi-rs directory not found"

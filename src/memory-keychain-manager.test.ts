@@ -14,16 +14,16 @@ const MockEntry = mock((_service: string, _account: string) => ({
 }))
 
 // Mock the module
-mock.module('@napi-rs/keyring', () => ({
+mock.module('./fake-keyring', () => ({
   Entry: MockEntry,
   findCredentials: mockFindCredentials,
 }))
 
 // Import after mocking
-import { KeychainManager } from './keychain-manager'
+import { MemoryKeychainManager } from './memory-keychain-manager'
 
-describe('KeychainManager', () => {
-  let manager: KeychainManager
+describe('MemoryKeychainManager', () => {
+  let manager: MemoryKeychainManager
 
   beforeEach(() => {
     // Clear all mock calls
@@ -32,14 +32,14 @@ describe('KeychainManager', () => {
     mockDeletePassword.mockClear()
     mockFindCredentials.mockClear()
     MockEntry.mockClear()
-
+    
     // Reset mock return values
     mockGetPassword.mockReturnValue('test-value')
     mockDeletePassword.mockReturnValue(true)
     mockFindCredentials.mockReturnValue([])
-
+    
     // Create new manager instance
-    manager = new KeychainManager('test-service', 'development')
+    manager = new MemoryKeychainManager('test-service', 'development')
   })
 
   test('should set password with environment suffix', async () => {
@@ -50,7 +50,7 @@ describe('KeychainManager', () => {
   })
 
   test('should set password without environment suffix when no environment', async () => {
-    const noEnvManager = new KeychainManager('test-service')
+    const noEnvManager = new MemoryKeychainManager('test-service')
     await noEnvManager.setPassword('TEST_KEY', 'test-value')
 
     expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY')
@@ -117,7 +117,7 @@ describe('KeychainManager', () => {
   })
 
   test('should return all generic credentials when no environment specified', async () => {
-    const noEnvManager = new KeychainManager('test-service')
+    const noEnvManager = new MemoryKeychainManager('test-service')
     mockFindCredentials.mockReturnValue([
       { account: 'KEY1', password: 'generic-value' },
       { account: 'KEY1?env=development', password: 'dev-value' },

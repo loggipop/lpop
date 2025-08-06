@@ -43,6 +43,8 @@ describe('KeychainManager', () => {
   })
 
   test('should set password with environment suffix', async () => {
+    manager = new KeychainManager('test-service', 'development')
+
     await manager.setPassword('TEST_KEY', 'test-value')
 
     expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
@@ -58,6 +60,8 @@ describe('KeychainManager', () => {
   })
 
   test('should get password successfully', async () => {
+    manager = new KeychainManager('test-service', 'development')
+
     mockGetPassword.mockReturnValue('test-value')
 
     const result = await manager.getPassword('TEST_KEY')
@@ -68,6 +72,8 @@ describe('KeychainManager', () => {
   })
 
   test('should return null on error', async () => {
+    manager = new KeychainManager('test-service', 'development')
+
     mockGetPassword.mockImplementation(() => {
       throw new Error('Not found')
     })
@@ -78,6 +84,8 @@ describe('KeychainManager', () => {
   })
 
   test('should delete password successfully', async () => {
+    manager = new KeychainManager('test-service', 'development')
+
     mockDeletePassword.mockReturnValue(true)
 
     const result = await manager.deletePassword('TEST_KEY')
@@ -88,6 +96,8 @@ describe('KeychainManager', () => {
   })
 
   test('should return false on error', async () => {
+    manager = new KeychainManager('test-service', 'development')
+
     mockDeletePassword.mockImplementation(() => {
       throw new Error('Not found')
     })
@@ -98,6 +108,8 @@ describe('KeychainManager', () => {
   })
 
   test('should prioritize environment-specific credentials', async () => {
+    manager = new KeychainManager('test-service', 'development')
+
     mockFindCredentials.mockReturnValue([
       { account: 'KEY1', password: 'generic-value' },
       { account: 'KEY1?env=development', password: 'dev-value' },
@@ -118,6 +130,7 @@ describe('KeychainManager', () => {
 
   test('should return all generic credentials when no environment specified', async () => {
     const noEnvManager = new KeychainManager('test-service')
+
     mockFindCredentials.mockReturnValue([
       { account: 'KEY1', password: 'generic-value' },
       { account: 'KEY1?env=development', password: 'dev-value' },
@@ -134,6 +147,8 @@ describe('KeychainManager', () => {
 
   describe('setEnvironmentVariables', () => {
     test('should set multiple environment variables', async () => {
+      manager = new KeychainManager('test-service', 'development')
+
       const variables = [
         { key: 'KEY1', value: 'value1' },
         { key: 'KEY2', value: 'value2' },
@@ -149,6 +164,8 @@ describe('KeychainManager', () => {
 
   describe('getEnvironmentVariables', () => {
     test('should return all environment variables', async () => {
+      manager = new KeychainManager('test-service', 'development')
+
       mockFindCredentials.mockReturnValue([
         { account: 'KEY1?env=development', password: 'value1' },
         { account: 'KEY2?env=development', password: 'value2' },
@@ -165,6 +182,8 @@ describe('KeychainManager', () => {
 
   describe('clearAllEnvironmentVariables', () => {
     test('should delete all environment variables', async () => {
+      manager = new KeychainManager('test-service', 'development')
+
       mockFindCredentials.mockReturnValue([
         { account: 'KEY1?env=development', password: 'value1' },
         { account: 'KEY2?env=development', password: 'value2' },

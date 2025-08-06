@@ -79,3 +79,7 @@ The main command `lpop <input>` intelligently determines the operation:
 ## Development Guidelines
 
 - Use bun to build and install libraries don't use pnpm or npm
+
+## TypeScript Best Practices
+
+- Avoid using type `any`

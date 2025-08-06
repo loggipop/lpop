@@ -12,7 +12,7 @@ mock.module('simple-git', () => ({
   simpleGit: mock(() => mockGit),
 }))
 
-const mockGitUrlParse = mock((url: string) => ({
+const mockGitUrlParse = mock((_url: string) => ({
   owner: 'loggipop',
   name: 'lpop',
   full_name: 'loggipop/lpop',

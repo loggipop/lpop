@@ -1,65 +1,74 @@
 import { describe, expect, test, beforeEach, mock } from 'bun:test'
 
-// Mock the @napi-rs/keyring module before any imports
-const mockEntry = {
-  setPassword: mock(() => { }),
-  getPassword: mock(() => 'test-value'),
-  deletePassword: mock(() => true),
-}
-
+// Set up mocks before any imports
+const mockSetPassword = mock(() => { })
+const mockGetPassword = mock(() => 'test-value')
+const mockDeletePassword = mock(() => true)
 const mockFindCredentials = mock((_service: string): any[] => [])
 
-// Create a mock Entry class
-const MockEntryClass = mock((_service: string, _account: string) => {
-  return mockEntry
-})
+// Mock the Entry constructor
+const MockEntry = mock((_service: string, _account: string) => ({
+  setPassword: mockSetPassword,
+  getPassword: mockGetPassword,
+  deletePassword: mockDeletePassword,
+}))
 
+// Mock the module
 mock.module('@napi-rs/keyring', () => ({
-  Entry: MockEntryClass,
+  Entry: MockEntry,
   findCredentials: mockFindCredentials,
 }))
 
+// Import after mocking
 import { KeychainManager } from './keychain-manager'
 
 describe('KeychainManager', () => {
   let manager: KeychainManager
 
   beforeEach(() => {
-    // Reset all mocks
-    mockEntry.setPassword.mockClear()
-    mockEntry.getPassword.mockClear()
-    mockEntry.deletePassword.mockClear()
+    // Clear all mock calls
+    mockSetPassword.mockClear()
+    mockGetPassword.mockClear()
+    mockDeletePassword.mockClear()
     mockFindCredentials.mockClear()
+    MockEntry.mockClear()
+
+    // Reset mock return values
+    mockGetPassword.mockReturnValue('test-value')
+    mockDeletePassword.mockReturnValue(true)
     mockFindCredentials.mockReturnValue([])
 
+    // Create new manager instance
     manager = new KeychainManager('test-service', 'development')
   })
 
   test('should set password with environment suffix', async () => {
     await manager.setPassword('TEST_KEY', 'test-value')
 
-    expect(mockEntry.setPassword).toHaveBeenCalledWith('test-value')
+    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
+    expect(mockSetPassword).toHaveBeenCalledWith('test-value')
   })
 
   test('should set password without environment suffix when no environment', async () => {
-    manager = new KeychainManager('test-service')
-    await manager.setPassword('TEST_KEY', 'test-value')
+    const noEnvManager = new KeychainManager('test-service')
+    await noEnvManager.setPassword('TEST_KEY', 'test-value')
 
-    expect(mockEntry.setPassword).toHaveBeenCalledWith('test-value')
+    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY')
+    expect(mockSetPassword).toHaveBeenCalledWith('test-value')
   })
 
-
   test('should get password successfully', async () => {
-    mockEntry.getPassword.mockReturnValue('test-value')
+    mockGetPassword.mockReturnValue('test-value')
 
     const result = await manager.getPassword('TEST_KEY')
 
-    expect(mockEntry.getPassword).toHaveBeenCalled()
+    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
+    expect(mockGetPassword).toHaveBeenCalled()
     expect(result).toBe('test-value')
   })
 
   test('should return null on error', async () => {
-    mockEntry.getPassword.mockImplementation(() => {
+    mockGetPassword.mockImplementation(() => {
       throw new Error('Not found')
     })
 
@@ -68,18 +77,18 @@ describe('KeychainManager', () => {
     expect(result).toBeNull()
   })
 
-
   test('should delete password successfully', async () => {
-    mockEntry.deletePassword.mockReturnValue(true)
+    mockDeletePassword.mockReturnValue(true)
 
     const result = await manager.deletePassword('TEST_KEY')
 
-    expect(mockEntry.deletePassword).toHaveBeenCalled()
+    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
+    expect(mockDeletePassword).toHaveBeenCalled()
     expect(result).toBe(true)
   })
 
   test('should return false on error', async () => {
-    mockEntry.deletePassword.mockImplementation(() => {
+    mockDeletePassword.mockImplementation(() => {
       throw new Error('Not found')
     })
 
@@ -87,7 +96,6 @@ describe('KeychainManager', () => {
 
     expect(result).toBe(false)
   })
-
 
   test('should prioritize environment-specific credentials', async () => {
     mockFindCredentials.mockReturnValue([
@@ -109,14 +117,14 @@ describe('KeychainManager', () => {
   })
 
   test('should return all generic credentials when no environment specified', async () => {
-    manager = new KeychainManager('test-service')
+    const noEnvManager = new KeychainManager('test-service')
     mockFindCredentials.mockReturnValue([
       { account: 'KEY1', password: 'generic-value' },
       { account: 'KEY1?env=development', password: 'dev-value' },
       { account: 'KEY2', password: 'generic-only' },
     ])
 
-    const result = await manager.findCredentials()
+    const result = await noEnvManager.findCredentials()
 
     expect(result).toEqual([
       { account: 'KEY1', password: 'generic-value' },
@@ -133,9 +141,9 @@ describe('KeychainManager', () => {
 
       await manager.setEnvironmentVariables(variables)
 
-      expect(mockEntry.setPassword).toHaveBeenCalledTimes(2)
-      expect(mockEntry.setPassword).toHaveBeenNthCalledWith(1, 'value1')
-      expect(mockEntry.setPassword).toHaveBeenNthCalledWith(2, 'value2')
+      expect(mockSetPassword).toHaveBeenCalledTimes(2)
+      expect(mockSetPassword).toHaveBeenNthCalledWith(1, 'value1')
+      expect(mockSetPassword).toHaveBeenNthCalledWith(2, 'value2')
     })
   })
 
@@ -161,11 +169,11 @@ describe('KeychainManager', () => {
         { account: 'KEY1?env=development', password: 'value1' },
         { account: 'KEY2?env=development', password: 'value2' },
       ])
-      mockEntry.deletePassword.mockReturnValue(true)
+      mockDeletePassword.mockReturnValue(true)
 
       await manager.clearAllEnvironmentVariables()
 
-      expect(mockEntry.deletePassword).toHaveBeenCalledTimes(2)
+      expect(mockDeletePassword).toHaveBeenCalledTimes(2)
     })
   })
 })

@@ -1,5 +1,4 @@
 import { describe, expect, test, beforeEach, mock } from 'bun:test'
-import { KeychainManager } from './keychain-manager'
 import { Entry, findCredentials, Credential } from '@napi-rs/keyring';
 
 
@@ -16,6 +15,8 @@ mock.module('@napi-rs/keyring', () => ({
   Entry: mock(() => mockEntry),
   findCredentials: mockFindCredentials,
 }))
+
+import { KeychainManager } from './keychain-manager'
 
 describe('KeychainManager', () => {
   let manager: KeychainManager

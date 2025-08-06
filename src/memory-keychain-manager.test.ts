@@ -42,6 +42,39 @@ describe('MemoryKeychainManager', () => {
     manager = new MemoryKeychainManager('test-service', 'development')
   })
 
+  test('MOCK VERIFICATION: should use mocked functions not real fake-keyring', async () => {
+    // Set a unique value that would never exist in real storage
+    const uniqueValue = 'MOCK_VERIFICATION_VALUE_' + Date.now()
+    mockGetPassword.mockReturnValue(uniqueValue)
+    
+    const result = await manager.getPassword('ANY_KEY')
+    
+    // If the mock is working, we get our unique value
+    // If the real fake-keyring is being used, we'd get null or undefined
+    expect(result).toBe(uniqueValue)
+    expect(mockGetPassword).toHaveBeenCalled()
+    expect(MockEntry).toHaveBeenCalled()
+  })
+
+  test('MOCK VERIFICATION: findCredentials should return mocked data not real storage', async () => {
+    // Set up mock to return impossible data that proves mocking is working
+    const impossibleData = [
+      { account: 'MOCKED_KEY_1', password: 'MOCKED_VALUE_1' },
+      { account: 'MOCKED_KEY_2?env=development', password: 'MOCKED_VALUE_2' },
+    ]
+    mockFindCredentials.mockReturnValue(impossibleData)
+    
+    const result = await manager.findCredentials()
+    
+    // If real fake-keyring was being used, storage would be empty
+    expect(mockFindCredentials).toHaveBeenCalledWith('test-service')
+    expect(result).toHaveLength(2)
+    // Result is processed by findCredentials logic
+    expect(result[0].account).toBe('MOCKED_KEY_1')
+    expect(result[1].account).toBe('MOCKED_KEY_2')
+    expect(result[1].password).toBe('MOCKED_VALUE_2')
+  })
+
   test('should set password with environment suffix', async () => {
     await manager.setPassword('TEST_KEY', 'test-value')
 

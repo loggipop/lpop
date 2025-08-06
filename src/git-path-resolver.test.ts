@@ -1,6 +1,4 @@
 import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
-import { GitPathResolver, isDevelopment, getServicePrefix } from './git-path-resolver'
-import { RemoteWithoutRefs, RemoteWithRefs, simpleGit } from 'simple-git'
 
 // Mock the modules
 const mockGit = {
@@ -21,6 +19,8 @@ const mockGitUrlParse = mock((_url: string) => ({
 mock.module('git-url-parse', () => ({
   default: mockGitUrlParse,
 }))
+import { GitPathResolver, isDevelopment, getServicePrefix } from './git-path-resolver'
+import { RemoteWithoutRefs, RemoteWithRefs, simpleGit } from 'simple-git'
 
 describe('GitPathResolver', () => {
   let resolver: GitPathResolver

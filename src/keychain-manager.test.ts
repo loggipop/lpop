@@ -1,18 +1,21 @@
 import { describe, expect, test, beforeEach, mock } from 'bun:test'
-import { Entry, findCredentials, Credential } from '@napi-rs/keyring';
 
-
-// Mock the @napi-rs/keyring module
+// Mock the @napi-rs/keyring module before any imports
 const mockEntry = {
   setPassword: mock(() => { }),
   getPassword: mock(() => 'test-value'),
   deletePassword: mock(() => true),
 }
 
-const mockFindCredentials = mock<typeof findCredentials>((service: string, target?: string | undefined | null): Credential[] => [])
+const mockFindCredentials = mock((_service: string): any[] => [])
+
+// Create a mock Entry class
+const MockEntryClass = mock((_service: string, _account: string) => {
+  return mockEntry
+})
 
 mock.module('@napi-rs/keyring', () => ({
-  Entry: mock(() => mockEntry),
+  Entry: MockEntryClass,
   findCredentials: mockFindCredentials,
 }))
 
@@ -32,98 +35,93 @@ describe('KeychainManager', () => {
     manager = new KeychainManager('test-service', 'development')
   })
 
-  describe('setPassword', () => {
-    test('should set password with environment suffix', async () => {
-      await manager.setPassword('TEST_KEY', 'test-value')
+  test('should set password with environment suffix', async () => {
+    await manager.setPassword('TEST_KEY', 'test-value')
 
-      expect(mockEntry.setPassword).toHaveBeenCalledWith('test-value')
-    })
-
-    test('should set password without environment suffix when no environment', async () => {
-      manager = new KeychainManager('test-service')
-      await manager.setPassword('TEST_KEY', 'test-value')
-
-      expect(mockEntry.setPassword).toHaveBeenCalledWith('test-value')
-    })
+    expect(mockEntry.setPassword).toHaveBeenCalledWith('test-value')
   })
 
-  describe('getPassword', () => {
-    test('should get password successfully', async () => {
-      mockEntry.getPassword.mockReturnValue('test-value')
+  test('should set password without environment suffix when no environment', async () => {
+    manager = new KeychainManager('test-service')
+    await manager.setPassword('TEST_KEY', 'test-value')
 
-      const result = await manager.getPassword('TEST_KEY')
-
-      expect(mockEntry.getPassword).toHaveBeenCalled()
-      expect(result).toBe('test-value')
-    })
-
-    test('should return null on error', async () => {
-      mockEntry.getPassword.mockImplementation(() => {
-        throw new Error('Not found')
-      })
-
-      const result = await manager.getPassword('TEST_KEY')
-
-      expect(result).toBeNull()
-    })
+    expect(mockEntry.setPassword).toHaveBeenCalledWith('test-value')
   })
 
-  describe('deletePassword', () => {
-    test('should delete password successfully', async () => {
-      mockEntry.deletePassword.mockReturnValue(true)
 
-      const result = await manager.deletePassword('TEST_KEY')
+  test('should get password successfully', async () => {
+    mockEntry.getPassword.mockReturnValue('test-value')
 
-      expect(mockEntry.deletePassword).toHaveBeenCalled()
-      expect(result).toBe(true)
-    })
+    const result = await manager.getPassword('TEST_KEY')
 
-    test('should return false on error', async () => {
-      mockEntry.deletePassword.mockImplementation(() => {
-        throw new Error('Not found')
-      })
-
-      const result = await manager.deletePassword('TEST_KEY')
-
-      expect(result).toBe(false)
-    })
+    expect(mockEntry.getPassword).toHaveBeenCalled()
+    expect(result).toBe('test-value')
   })
 
-  describe('findCredentials', () => {
-    test('should prioritize environment-specific credentials', async () => {
-      mockFindCredentials.mockReturnValue([
-        { account: 'KEY1', password: 'generic-value' },
-        { account: 'KEY1?env=development', password: 'dev-value' },
-        { account: 'KEY1?env=production', password: 'prod-value' },
-        { account: 'KEY2?env=development', password: 'dev-only' },
-        { account: 'KEY3', password: 'generic-only' },
-      ])
-
-      const result = await manager.findCredentials()
-
-      expect(mockFindCredentials).toHaveBeenCalledWith('test-service')
-      expect(result).toEqual([
-        { account: 'KEY1', password: 'dev-value' },
-        { account: 'KEY2', password: 'dev-only' },
-        { account: 'KEY3', password: 'generic-only' },
-      ])
+  test('should return null on error', async () => {
+    mockEntry.getPassword.mockImplementation(() => {
+      throw new Error('Not found')
     })
 
-    test('should return all generic credentials when no environment specified', async () => {
-      manager = new KeychainManager('test-service')
-      mockFindCredentials.mockReturnValue([
-        { account: 'KEY1', password: 'generic-value' },
-        { account: 'KEY1?env=development', password: 'dev-value' },
-        { account: 'KEY2', password: 'generic-only' },
-      ])
+    const result = await manager.getPassword('TEST_KEY')
 
-      const result = await manager.findCredentials()
+    expect(result).toBeNull()
+  })
 
-      expect(result).toEqual([
-        { account: 'KEY1', password: 'generic-value' },
-        { account: 'KEY2', password: 'generic-only' },
-      ])
+
+  test('should delete password successfully', async () => {
+    mockEntry.deletePassword.mockReturnValue(true)
+
+    const result = await manager.deletePassword('TEST_KEY')
+
+    expect(mockEntry.deletePassword).toHaveBeenCalled()
+    expect(result).toBe(true)
+  })
+
+  test('should return false on error', async () => {
+    mockEntry.deletePassword.mockImplementation(() => {
+      throw new Error('Not found')
     })
+
+    const result = await manager.deletePassword('TEST_KEY')
+
+    expect(result).toBe(false)
+  })
+
+
+  test('should prioritize environment-specific credentials', async () => {
+    mockFindCredentials.mockReturnValue([
+      { account: 'KEY1', password: 'generic-value' },
+      { account: 'KEY1?env=development', password: 'dev-value' },
+      { account: 'KEY1?env=production', password: 'prod-value' },
+      { account: 'KEY2?env=development', password: 'dev-only' },
+      { account: 'KEY3', password: 'generic-only' },
+    ])
+
+    const result = await manager.findCredentials()
+
+    expect(mockFindCredentials).toHaveBeenCalledWith('test-service')
+    expect(result).toEqual([
+      { account: 'KEY1', password: 'dev-value' },
+      { account: 'KEY2', password: 'dev-only' },
+      { account: 'KEY3', password: 'generic-only' },
+    ])
+  })
+
+  test('should return all generic credentials when no environment specified', async () => {
+    manager = new KeychainManager('test-service')
+    mockFindCredentials.mockReturnValue([
+      { account: 'KEY1', password: 'generic-value' },
+      { account: 'KEY1?env=development', password: 'dev-value' },
+      { account: 'KEY2', password: 'generic-only' },
+    ])
+
+    const result = await manager.findCredentials()
+
+    expect(result).toEqual([
+      { account: 'KEY1', password: 'generic-value' },
+      { account: 'KEY2', password: 'generic-only' },
+    ])
   })
 
   describe('setEnvironmentVariables', () => {

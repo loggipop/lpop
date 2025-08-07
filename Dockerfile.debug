@@ -1,0 +1,43 @@
+FROM ubuntu:latest
+
+# Install essential packages
+RUN apt-get update && apt-get install -y \
+  curl \
+  git \
+  openssh-server \
+  libsecret-1-dev \
+  build-essential \
+  unzip \
+  ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 24.x
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+  && apt-get install -y nodejs
+
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
+
+# Configure SSH
+RUN mkdir /var/run/sshd
+RUN echo 'root:password' | chpasswd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+# Set working directory
+WORKDIR /app
+
+# Copy source code first (needed for postinstall script detection)
+COPY . .
+
+# Install dependencies without postinstall (to avoid binary setup issues)
+RUN bun install --ignore-scripts
+
+# Run postinstall manually (will skip due to src directory presence)
+RUN node scripts/postinstall.js || echo "Postinstall skipped in development mode"
+
+EXPOSE 22
+
+# Start SSH service and keep container running
+CMD ["/usr/sbin/sshd", "-D"]

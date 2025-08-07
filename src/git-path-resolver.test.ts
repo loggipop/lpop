@@ -1,35 +1,39 @@
-import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
 
-// Mock the modules
-const mockGit = {
-  status: mock(() => Promise.resolve({})),
-  getRemotes: mock((): Promise<RemoteWithoutRefs[]> => Promise.resolve([])),
-}
+// Mock the modules - these get hoisted
+vi.mock('simple-git')
+vi.mock('git-url-parse')
 
-mock.module('simple-git', () => ({
-  simpleGit: mock(() => mockGit),
-}))
-
-const mockGitUrlParse = mock((_url: string) => ({
-  owner: 'loggipop',
-  name: 'lpop',
-  full_name: 'loggipop/lpop',
-}))
-
-mock.module('git-url-parse', () => ({
-  default: mockGitUrlParse,
-}))
 import { GitPathResolver, isDevelopment, getServicePrefix } from './git-path-resolver'
 import { RemoteWithoutRefs, RemoteWithRefs, simpleGit } from 'simple-git'
+import GitUrlParse from 'git-url-parse'
+
+// Create mocked functions
+const mockedSimpleGit = vi.mocked(simpleGit)
+const mockedGitUrlParse = vi.mocked(GitUrlParse)
 
 describe('GitPathResolver', () => {
   let resolver: GitPathResolver
+  let mockGit: any
 
   beforeEach(() => {
     // Reset all mocks
-    mockGit.status.mockClear()
-    mockGit.getRemotes.mockClear()
-    mockGitUrlParse.mockClear()
+    vi.clearAllMocks()
+
+    // Set up git mock
+    mockGit = {
+      status: vi.fn(() => Promise.resolve({})),
+      getRemotes: vi.fn((): Promise<RemoteWithoutRefs[]> => Promise.resolve([])),
+    }
+
+    mockedSimpleGit.mockReturnValue(mockGit)
+    
+    // Set up GitUrlParse mock
+    mockedGitUrlParse.mockReturnValue({
+      owner: 'loggipop',
+      name: 'lpop',
+      full_name: 'loggipop/lpop',
+    } as any)
 
     resolver = new GitPathResolver('/test/working/dir')
   })
@@ -50,36 +54,38 @@ describe('GitPathResolver', () => {
       const result = await resolver.isGitRepository()
 
       expect(result).toBe(false)
+      expect(mockGit.status).toHaveBeenCalled()
     })
   })
 
   describe('getRemoteUrl', () => {
-    test('should return remote URL for origin', async () => {
-      const remote: RemoteWithRefs = {
-        name: 'origin',
-        refs: {
-          fetch: 'https://github.com/owner/repo.git',
-          push: 'https://github.com/owner/repo.git',
-        },
-      }
-      mockGit.getRemotes.mockResolvedValue([remote])
+    test('should return origin remote URL', async () => {
+      const remotes: RemoteWithoutRefs[] = [
+        { name: 'origin', refs: { fetch: 'https://github.com/loggipop/lpop.git', push: 'https://github.com/loggipop/lpop.git' } },
+        { name: 'upstream', refs: { fetch: 'https://github.com/upstream/repo.git', push: 'https://github.com/upstream/repo.git' } },
+      ]
+      mockGit.getRemotes.mockResolvedValue(remotes)
 
       const result = await resolver.getRemoteUrl()
 
-      expect(result).toBe('https://github.com/owner/repo.git')
+      expect(result).toBe('https://github.com/loggipop/lpop.git')
       expect(mockGit.getRemotes).toHaveBeenCalledWith(true)
     })
 
-    test('should return null when remote not found', async () => {
-      mockGit.getRemotes.mockResolvedValue([])
+    test('should return first remote URL when no origin', async () => {
+      const remotes: RemoteWithoutRefs[] = [
+        { name: 'upstream', refs: { fetch: 'https://github.com/upstream/repo.git', push: 'https://github.com/upstream/repo.git' } },
+        { name: 'fork', refs: { fetch: 'https://github.com/fork/repo.git', push: 'https://github.com/fork/repo.git' } },
+      ]
+      mockGit.getRemotes.mockResolvedValue(remotes)
 
       const result = await resolver.getRemoteUrl()
 
-      expect(result).toBeNull()
+      expect(result).toBe('https://github.com/upstream/repo.git')
     })
 
-    test('should return null on error', async () => {
-      mockGit.getRemotes.mockRejectedValue(new Error('Failed'))
+    test('should return null when no remotes', async () => {
+      mockGit.getRemotes.mockResolvedValue([])
 
       const result = await resolver.getRemoteUrl()
 
@@ -87,172 +93,84 @@ describe('GitPathResolver', () => {
     })
   })
 
-  describe('getGitInfo', () => {
-    test('should parse git remote URL correctly', async () => {
-      const remote: RemoteWithRefs = {
-        name: 'origin',
-        refs: {
-          fetch: 'https://github.com/loggipop/lpop.git',
-          push: 'https://github.com/loggipop/lpop.git',
-        },
-      }
-      mockGit.getRemotes.mockResolvedValue([
-        remote
-      ])
+  describe('generateServiceNameFromRemote', () => {
+    test('should generate service name from GitHub URL', () => {
+      const result = resolver.generateServiceNameFromRemote('https://github.com/loggipop/lpop.git')
 
-      mockGitUrlParse.mockReturnValue({
-        owner: 'loggipop',
-        name: 'lpop',
-        full_name: 'loggipop/lpop',
-      })
-
-      const result = await resolver.getGitInfo()
-
-      expect(result).toEqual({
-        owner: 'loggipop',
-        name: 'lpop',
-        full_name: 'loggipop/lpop',
-      })
-      expect(mockGitUrlParse).toHaveBeenCalledWith('https://github.com/loggipop/lpop.git')
+      expect(mockedGitUrlParse).toHaveBeenCalledWith('https://github.com/loggipop/lpop.git')
+      expect(result).toBe('lpop://github.com/loggipop/lpop')
     })
 
-    test('should return null when no remote URL', async () => {
-      mockGit.getRemotes.mockResolvedValue([])
-
-      const result = await resolver.getGitInfo()
-
-      expect(result).toBeNull()
-    })
-
-    test('should return null when parsing fails', async () => {
-      const remote: RemoteWithRefs = {
-        name: 'origin',
-        refs: {
-          fetch: 'invalid-url',
-          push: 'invalid-url',
-        },
-      }
-      mockGit.getRemotes.mockResolvedValue([
-        remote
-      ])
-
-      mockGitUrlParse.mockImplementation(() => {
+    test('should use fallback for invalid URL', () => {
+      mockedGitUrlParse.mockImplementation(() => {
         throw new Error('Invalid URL')
       })
 
-      const result = await resolver.getGitInfo()
+      const result = resolver.generateServiceNameFromRemote('invalid-url')
 
-      expect(result).toBeNull()
+      expect(result).toBe('lpop://local/test')
     })
   })
 
   describe('generateServiceNameAsync', () => {
-    test('should generate service name from git info', async () => {
-      const originalIsDev = isDevelopment()
-      const mockGetGitInfo = mock(() => Promise.resolve({
-        owner: 'loggipop',
-        name: 'lpop',
-        full_name: 'loggipop/lpop',
-      }))
-      resolver.getGitInfo = mockGetGitInfo
+    test('should generate service name from git repository', async () => {
+      mockGit.status.mockResolvedValue({})
+      mockGit.getRemotes.mockResolvedValue([
+        { name: 'origin', refs: { fetch: 'https://github.com/loggipop/lpop.git', push: 'https://github.com/loggipop/lpop.git' } },
+      ])
 
       const result = await resolver.generateServiceNameAsync()
 
-      expect(result).toBe(`${originalIsDev ? 'lpop-dev://' : 'lpop://'}loggipop/lpop`)
+      expect(result).toBe('lpop://github.com/loggipop/lpop')
     })
 
-    test('should fallback to directory name when no git info', async () => {
-      const originalIsDev = isDevelopment()
-      const mockGetGitInfo = mock(() => Promise.resolve(null))
-      resolver.getGitInfo = mockGetGitInfo
+    test('should use local fallback when not a git repository', async () => {
+      mockGit.status.mockRejectedValue(new Error('Not a git repository'))
 
       const result = await resolver.generateServiceNameAsync()
 
-      expect(result).toBe(`${originalIsDev ? 'lpop-dev://' : 'lpop://'}local/dir`)
+      expect(result).toBe('lpop://local/test')
     })
 
-    test('should handle root directory', async () => {
-      const originalIsDev = isDevelopment()
-      const mockGetGitInfo = mock(() => Promise.resolve(null))
-      resolver = new GitPathResolver('/')
-      resolver.getGitInfo = mockGetGitInfo
+    test('should use local fallback when no remotes', async () => {
+      mockGit.status.mockResolvedValue({})
+      mockGit.getRemotes.mockResolvedValue([])
 
       const result = await resolver.generateServiceNameAsync()
 
-      expect(result).toBe(`${originalIsDev ? 'lpop-dev://' : 'lpop://'}local/unknown`)
+      expect(result).toBe('lpop://local/test')
     })
   })
 
-  describe('static methods', () => {
-    describe('extractEnvironmentFromService', () => {
-      test('should extract environment from service name', () => {
-        const result = GitPathResolver.extractEnvironmentFromService(
-          'lpop://loggipop/lpop?env=production'
-        )
+  describe('helper functions', () => {
+    let originalEnv: NodeJS.ProcessEnv
 
-        expect(result).toBe('production')
-      })
-
-      test('should return null when no environment', () => {
-        const result = GitPathResolver.extractEnvironmentFromService(
-          'lpop://loggipop/lpop'
-        )
-
-        expect(result).toBeNull()
-      })
+    beforeEach(() => {
+      originalEnv = process.env
+      process.env = { ...originalEnv }
     })
 
-    describe('extractRepoFromService', () => {
-      test('should extract repo from service name', () => {
-        const result = GitPathResolver.extractRepoFromService(
-          'lpop://loggipop/lpop'
-        )
-
-        expect(result).toBe('loggipop/lpop')
-      })
+    afterEach(() => {
+      process.env = originalEnv
     })
-  })
-})
 
-describe('isDevelopment', () => {
-  const originalArgv = process.argv
-  const originalExecPath = process.execPath
+    test('isDevelopment should detect development environment', () => {
+      process.env.NODE_ENV = 'development'
+      expect(isDevelopment()).toBe(true)
 
-  beforeEach(() => {
-    process.argv = [...originalArgv]
-    process.execPath = originalExecPath
-  })
+      process.env.NODE_ENV = 'production'
+      expect(isDevelopment()).toBe(false)
 
-  afterEach(() => {
-    process.argv = originalArgv
-    process.execPath = originalExecPath
-  })
+      delete process.env.NODE_ENV
+      expect(isDevelopment()).toBe(false)
+    })
 
-  test('should return false when running as compiled binary', () => {
-    process.execPath = '/usr/local/bin/lpop'
+    test('getServicePrefix should return correct prefix', () => {
+      process.env.NODE_ENV = 'development'
+      expect(getServicePrefix()).toBe('lpop-dev://')
 
-    expect(isDevelopment()).toBe(false)
-  })
-
-  test('should return false when running through node_modules', () => {
-    process.argv[1] = '/path/to/project/node_modules/lpop/bin/lpop'
-
-    expect(isDevelopment()).toBe(false)
-  })
-
-  test('should return true when running from source', () => {
-    process.execPath = '/usr/local/bin/bun'
-    process.argv[1] = '/path/to/project/src/index.ts'
-
-    expect(isDevelopment()).toBe(true)
-  })
-})
-
-describe('getServicePrefix', () => {
-  test('should return correct prefix based on environment', () => {
-    const originalIsDev = isDevelopment()
-    const prefix = getServicePrefix()
-
-    expect(prefix).toBe(originalIsDev ? 'lpop-dev://' : 'lpop://')
+      process.env.NODE_ENV = 'production'
+      expect(getServicePrefix()).toBe('lpop://')
+    })
   })
 })

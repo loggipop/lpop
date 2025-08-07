@@ -1,0 +1,10 @@
+services:
+  ubuntu-debug:
+    build:
+      context: .
+      dockerfile: Dockerfile.debug
+    ports:
+      - "2222:22"
+    volumes:
+      - .:/app
+    command: /bin/bash -c "/usr/sbin/sshd && tail -f /dev/null"

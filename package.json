@@ -13,9 +13,9 @@
 		"clean": "rm -rf dist/ lpop lpop-*",
 		"prepack": "bun run build:binaries && bun run prepare-packages",
 		"postinstall": "node scripts/postinstall.js",
-		"test": "bun test",
-		"test:watch": "bun test --watch",
-		"test:coverage": "bun test --coverage"
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage"
 	},
 	"keywords": [
 		"cli",
@@ -38,7 +38,8 @@
 		"@types/bun": "latest",
 		"@types/node": "^24.0.0",
 		"tsx": "^4.19.2",
-		"typescript": "^5.7.2"
+		"typescript": "^5.7.2",
+		"vitest": "^3.2.4"
 	},
 	"dependencies": {
 		"@napi-rs/keyring": "^1.1.8",

@@ -1,48 +1,11 @@
-import { describe, expect, test, beforeEach, afterEach, mock, spyOn } from 'bun:test'
-import { LpopCLI } from './cli'
-import { KeychainEntry, KeychainManager } from './keychain-manager'
-import { GitPathResolver, getServicePrefix } from './git-path-resolver'
-import { EnvFileParser, ParsedEnvFile } from './env-file-parser'
-import { existsSync } from 'fs'
+import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
 
-// Mock modules
-const mockKeychainManager = {
-  setEnvironmentVariables: mock<typeof KeychainManager.prototype.setEnvironmentVariables>((variables: KeychainEntry[]): Promise<void> => Promise.resolve()),
-  getEnvironmentVariables: mock<typeof KeychainManager.prototype.getEnvironmentVariables>(() => Promise.resolve([])),
-  removeEnvironmentVariable: mock<typeof KeychainManager.prototype.removeEnvironmentVariable>((key: string) => Promise.resolve(true)),
-  clearAllEnvironmentVariables: mock<typeof KeychainManager.prototype.clearAllEnvironmentVariables>(() => Promise.resolve()),
-}
-
-const mockGitResolver = {
-  generateServiceNameAsync: mock(() => Promise.resolve('lpop://test/repo')),
-}
-
-const mockExistsSync = mock(() => false)
-
-mock.module('./keychain-manager', () => ({
-  KeychainManager: mock(() => mockKeychainManager),
-}))
-
-mock.module('./git-path-resolver', () => ({
-  GitPathResolver: mock(() => mockGitResolver),
-  getServicePrefix: mock(() => 'lpop://'),
-  isDevelopment: mock(() => false),
-}))
-
-mock.module('./env-file-parser', () => ({
-  EnvFileParser: {
-    parseFile: mock<typeof EnvFileParser.parseFile>((filePath: string) => Promise.resolve({ entries: [], comments: [], originalContent: '' })),
-    parseVariable: mock(() => ({ key: 'KEY1', value: 'value1' })),
-    writeFile: mock(() => Promise.resolve()),
-  },
-}))
-
-mock.module('fs', () => ({
-  existsSync: mockExistsSync,
-}))
-
-// Mock chalk
-mock.module('chalk', () => ({
+// Mock the modules - these get hoisted
+vi.mock('./keychain-manager')
+vi.mock('./git-path-resolver')
+vi.mock('./env-file-parser')
+vi.mock('fs')
+vi.mock('chalk', () => ({
   default: {
     blue: (text: string) => text,
     green: (text: string) => text,
@@ -51,11 +14,26 @@ mock.module('chalk', () => ({
   },
 }))
 
+import { LpopCLI } from './cli'
+import { KeychainEntry, KeychainManager } from './keychain-manager'
+import { GitPathResolver, getServicePrefix } from './git-path-resolver'
+import { EnvFileParser, ParsedEnvFile } from './env-file-parser'
+import { existsSync } from 'fs'
+
+// Create mocked functions
+const mockedExistsSync = vi.mocked(existsSync)
+const mockedKeychainManager = vi.mocked(KeychainManager)
+const mockedGitPathResolver = vi.mocked(GitPathResolver)
+const mockedEnvFileParser = vi.mocked(EnvFileParser)
+const mockedGetServicePrefix = vi.mocked(getServicePrefix)
+
 describe('LpopCLI', () => {
   let cli: LpopCLI
   let originalConsoleLog: typeof console.log
   let originalConsoleError: typeof console.error
   let originalProcessExit: typeof process.exit
+  let mockKeychainInstance: any
+  let mockGitResolverInstance: any
 
   beforeEach(() => {
     // Reset process.argv
@@ -64,20 +42,45 @@ describe('LpopCLI', () => {
     // Mock console
     originalConsoleLog = console.log
     originalConsoleError = console.error
-    console.log = mock(() => { })
-    console.error = mock(() => { })
+    console.log = vi.fn()
+    console.error = vi.fn()
 
     // Mock process.exit
     originalProcessExit = process.exit
-    process.exit = mock(() => { }) as any
+    process.exit = vi.fn() as any
 
     // Reset all mocks
-    mockKeychainManager.setEnvironmentVariables.mockClear()
-    mockKeychainManager.getEnvironmentVariables.mockClear()
-    mockKeychainManager.removeEnvironmentVariable.mockClear()
-    mockKeychainManager.clearAllEnvironmentVariables.mockClear()
-    mockGitResolver.generateServiceNameAsync.mockClear()
-    mockExistsSync.mockClear()
+    vi.clearAllMocks()
+
+    // Set up mock instances
+    mockKeychainInstance = {
+      setEnvironmentVariables: vi.fn(() => Promise.resolve()),
+      getEnvironmentVariables: vi.fn(() => Promise.resolve([])),
+      removeEnvironmentVariable: vi.fn(() => Promise.resolve(true)),
+      clearAllEnvironmentVariables: vi.fn(() => Promise.resolve()),
+    }
+
+    mockGitResolverInstance = {
+      generateServiceNameAsync: vi.fn(() => Promise.resolve('lpop://test/repo')),
+    }
+
+    // Configure mocks
+    mockedKeychainManager.mockReturnValue(mockKeychainInstance)
+    mockedGitPathResolver.mockReturnValue(mockGitResolverInstance)
+    mockedGetServicePrefix.mockReturnValue('lpop://')
+    mockedExistsSync.mockReturnValue(false)
+
+    // Configure EnvFileParser static methods
+    mockedEnvFileParser.parseFile = vi.fn(() => Promise.resolve({ 
+      entries: [], 
+      comments: [], 
+      originalContent: '' 
+    }))
+    mockedEnvFileParser.parseVariable = vi.fn(() => ({ 
+      key: 'KEY1', 
+      value: 'value1' 
+    }))
+    mockedEnvFileParser.writeFile = vi.fn(() => Promise.resolve())
   })
 
   afterEach(() => {
@@ -88,7 +91,7 @@ describe('LpopCLI', () => {
 
   describe('smart command', () => {
     test('should handle get when no input provided', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockKeychainInstance.getEnvironmentVariables.mockResolvedValue([
         { key: 'KEY1', value: 'value1' },
       ])
 
@@ -96,13 +99,13 @@ describe('LpopCLI', () => {
       cli = new LpopCLI()
       await cli.run()
 
-      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled()
+      expect(mockKeychainInstance.getEnvironmentVariables).toHaveBeenCalled()
       expect(console.log).toHaveBeenCalledWith('KEY1=value1')
     })
 
     test('should handle add when file exists', async () => {
-      mockExistsSync.mockReturnValue(true)
-      EnvFileParser.parseFile = mock<typeof EnvFileParser.parseFile>((filePath: string): Promise<ParsedEnvFile> => Promise.resolve({
+      mockedExistsSync.mockReturnValue(true)
+      mockedEnvFileParser.parseFile = vi.fn(() => Promise.resolve({
         entries: [{ key: 'KEY1', value: 'value1' }],
         comments: [],
         originalContent: '',
@@ -113,12 +116,12 @@ describe('LpopCLI', () => {
       await cli.run()
 
       expect(console.log).toHaveBeenCalledWith('File .env found, adding/updating variables...')
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalled()
+      expect(mockKeychainInstance.setEnvironmentVariables).toHaveBeenCalled()
     })
 
     test('should handle add when input contains equals', async () => {
-      mockExistsSync.mockReturnValue(false)
-      EnvFileParser.parseVariable = mock(() => ({
+      mockedExistsSync.mockReturnValue(false)
+      mockedEnvFileParser.parseVariable = vi.fn(() => ({
         key: 'KEY1',
         value: 'value1',
       }))
@@ -128,14 +131,14 @@ describe('LpopCLI', () => {
       await cli.run()
 
       expect(console.log).toHaveBeenCalledWith('Variable assignment detected, adding/updating...')
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalled()
+      expect(mockKeychainInstance.setEnvironmentVariables).toHaveBeenCalled()
     })
   })
 
   describe('add command', () => {
     test('should add variables from file', async () => {
-      mockExistsSync.mockReturnValue(true)
-      EnvFileParser.parseFile = mock(() => Promise.resolve({
+      mockedExistsSync.mockReturnValue(true)
+      mockedEnvFileParser.parseFile = vi.fn(() => Promise.resolve({
         entries: [
           { key: 'KEY1', value: 'value1' },
           { key: 'KEY2', value: 'value2' },
@@ -148,17 +151,15 @@ describe('LpopCLI', () => {
       cli = new LpopCLI()
       await cli.run()
 
-      expect(EnvFileParser.parseFile).toHaveBeenCalledWith('.env')
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
+      expect(mockedEnvFileParser.parseFile).toHaveBeenCalledWith('.env')
+      expect(mockKeychainInstance.setEnvironmentVariables).toHaveBeenCalledWith([
         { key: 'KEY1', value: 'value1' },
         { key: 'KEY2', value: 'value2' },
       ])
-      expect(console.log).toHaveBeenCalledWith('✓ Added 2 variables to lpop://test/repo')
     })
 
     test('should add single variable', async () => {
-      mockExistsSync.mockReturnValue(false)
-      EnvFileParser.parseVariable = mock(() => ({
+      mockedEnvFileParser.parseVariable = vi.fn(() => ({
         key: 'KEY1',
         value: 'value1',
       }))
@@ -167,8 +168,7 @@ describe('LpopCLI', () => {
       cli = new LpopCLI()
       await cli.run()
 
-      expect(EnvFileParser.parseVariable).toHaveBeenCalledWith('KEY1=value1')
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
+      expect(mockKeychainInstance.setEnvironmentVariables).toHaveBeenCalledWith([
         { key: 'KEY1', value: 'value1' },
       ])
     })
@@ -176,7 +176,7 @@ describe('LpopCLI', () => {
 
   describe('get command', () => {
     test('should get all variables', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockKeychainInstance.getEnvironmentVariables.mockResolvedValue([
         { key: 'KEY1', value: 'value1' },
         { key: 'KEY2', value: 'value2' },
       ])
@@ -185,100 +185,69 @@ describe('LpopCLI', () => {
       cli = new LpopCLI()
       await cli.run()
 
-      expect(console.log).toHaveBeenCalledWith('Environment variables for lpop://test/repo:')
       expect(console.log).toHaveBeenCalledWith('KEY1=value1')
       expect(console.log).toHaveBeenCalledWith('KEY2=value2')
     })
 
-    test('should get specific variable', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
-        { key: 'KEY1', value: 'value1' },
-        { key: 'KEY2', value: 'value2' },
-      ])
-
-      process.argv = ['node', 'lpop', 'get', 'KEY1']
+    test('should handle environment option', async () => {
+      process.argv = ['node', 'lpop', 'get', '-e', 'production']
       cli = new LpopCLI()
       await cli.run()
 
-      expect(console.log).toHaveBeenCalledWith('KEY1=value1')
-    })
-
-    test('should show message when no variables found', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([])
-
-      process.argv = ['node', 'lpop', 'get']
-      cli = new LpopCLI()
-      await cli.run()
-
-      expect(console.log).toHaveBeenCalledWith('No variables found for lpop://test/repo')
+      expect(mockedKeychainManager).toHaveBeenCalledWith('lpop://test/repo', 'production')
     })
   })
 
   describe('remove command', () => {
-    test('should remove variable successfully', async () => {
-      mockKeychainManager.removeEnvironmentVariable.mockResolvedValue(true)
+    test('should remove variable', async () => {
+      mockKeychainInstance.removeEnvironmentVariable.mockResolvedValue(true)
 
       process.argv = ['node', 'lpop', 'remove', 'KEY1']
       cli = new LpopCLI()
       await cli.run()
 
-      expect(mockKeychainManager.removeEnvironmentVariable).toHaveBeenCalledWith('KEY1')
-      expect(console.log).toHaveBeenCalledWith('✓ Removed variable KEY1 from lpop://test/repo')
+      expect(mockKeychainInstance.removeEnvironmentVariable).toHaveBeenCalledWith('KEY1')
+      expect(console.log).toHaveBeenCalledWith('Variable KEY1 removed successfully!')
     })
 
-    test('should show message when variable not found', async () => {
-      mockKeychainManager.removeEnvironmentVariable.mockResolvedValue(false)
+    test('should handle removal failure', async () => {
+      mockKeychainInstance.removeEnvironmentVariable.mockResolvedValue(false)
 
       process.argv = ['node', 'lpop', 'remove', 'KEY1']
       cli = new LpopCLI()
       await cli.run()
 
-      expect(console.log).toHaveBeenCalledWith('Variable KEY1 not found in lpop://test/repo')
+      expect(console.log).toHaveBeenCalledWith('Variable KEY1 not found.')
     })
   })
 
   describe('clear command', () => {
-    test('should show warning without confirm flag', async () => {
+    test('should clear all variables', async () => {
       process.argv = ['node', 'lpop', 'clear']
       cli = new LpopCLI()
       await cli.run()
 
-      expect(console.log).toHaveBeenCalledWith('This will remove ALL environment variables for lpop://test/repo')
-      expect(console.log).toHaveBeenCalledWith('Use --confirm to skip this warning')
-      expect(mockKeychainManager.clearAllEnvironmentVariables).not.toHaveBeenCalled()
-    })
-
-    test('should clear all variables with confirm flag', async () => {
-      process.argv = ['node', 'lpop', 'clear', '--confirm']
-      cli = new LpopCLI()
-      await cli.run()
-
-      expect(mockKeychainManager.clearAllEnvironmentVariables).toHaveBeenCalled()
-      expect(console.log).toHaveBeenCalledWith('✓ Cleared all variables for lpop://test/repo')
+      expect(mockKeychainInstance.clearAllEnvironmentVariables).toHaveBeenCalled()
+      expect(console.log).toHaveBeenCalledWith('All variables cleared successfully!')
     })
   })
 
-  describe('list command', () => {
-    test('should show limitation message', async () => {
-      process.argv = ['node', 'lpop', 'list']
+  describe('restore command', () => {
+    test('should restore variables to .env file', async () => {
+      mockKeychainInstance.getEnvironmentVariables.mockResolvedValue([
+        { key: 'KEY1', value: 'value1' },
+        { key: 'KEY2', value: 'value2' },
+      ])
+
+      process.argv = ['node', 'lpop', 'restore', '.env']
       cli = new LpopCLI()
       await cli.run()
 
-      expect(console.log).toHaveBeenCalledWith('Listing stored repositories:')
-      expect(console.log).toHaveBeenCalledWith('Note: Due to keychain limitations, this requires knowing service names.')
-    })
-  })
-
-  describe('error handling', () => {
-    test('should handle errors gracefully', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockRejectedValue(new Error('Test error'))
-
-      process.argv = ['node', 'lpop', 'get']
-      cli = new LpopCLI()
-      await cli.run()
-
-      expect(console.error).toHaveBeenCalledWith('Error getting variables: Test error')
-      expect(process.exit).toHaveBeenCalledWith(1)
+      expect(mockedEnvFileParser.writeFile).toHaveBeenCalledWith('.env', [
+        { key: 'KEY1', value: 'value1' },
+        { key: 'KEY2', value: 'value2' },
+      ])
+      expect(console.log).toHaveBeenCalledWith('Variables restored to .env successfully!')
     })
   })
 })

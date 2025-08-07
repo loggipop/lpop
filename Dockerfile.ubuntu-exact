@@ -1,0 +1,56 @@
+# Use Ubuntu 22.04 - the exact version GitHub Actions ubuntu-latest uses
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install exact packages that GitHub Actions has pre-installed
+RUN apt-get update && apt-get install -y \
+  curl \
+  wget \
+  git \
+  openssh-server \
+  libsecret-1-dev \
+  build-essential \
+  ca-certificates \
+  software-properties-common \
+  apt-transport-https \
+  lsb-release \
+  gnupg \
+  sudo \
+  unzip \
+  && rm -rf /var/lib/apt/lists/*
+
+# Create runner user (same as GitHub Actions)
+RUN useradd -m -s /bin/bash runner
+RUN echo 'runner:password' | chpasswd
+RUN usermod -aG sudo runner
+
+# Configure SSH
+RUN mkdir /var/run/sshd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+# Install Node.js 20.x (same as GitHub Actions default)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get install -y nodejs
+
+# Switch to runner user
+USER runner
+WORKDIR /home/runner
+
+# Install Bun with exact version
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.2.19"
+ENV PATH="/home/runner/.bun/bin:$PATH"
+
+# Set up workspace
+WORKDIR /home/runner/work/lpop/lpop
+COPY --chown=runner:runner . .
+
+# Install dependencies
+RUN bun install
+
+EXPOSE 22
+
+# Switch back to root for SSH
+USER root
+CMD ["/usr/sbin/sshd", "-D"]

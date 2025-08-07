@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach } from 'bun:test'
+import { describe, expect, test, beforeEach } from 'vitest'
 import { MemoryKeychainManager } from './memory-keychain-manager'
 import { clearStorage } from './fake-keyring'
 

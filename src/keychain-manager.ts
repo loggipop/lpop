@@ -1,4 +1,4 @@
-import { Entry, findCredentials, Credential } from '@napi-rs/keyring';
+import { Entry, findCredentials, type Credential } from '@napi-rs/keyring';
 
 export interface KeychainEntry {
   key: string;
@@ -53,7 +53,7 @@ export class KeychainManager {
    *
    * @returns Promise resolving to an array of credential objects with account names (without env suffix) and passwords
    */
-  async findCredentials(): Promise<Array<{ account: string; password: string }>> {
+  async findServiceCredentials(): Promise<Array<{ account: string; password: string }>> {
     const credentials: Credential[] = findCredentials(this.serviceName);
 
     // Create a record as it's more efficient than a map in this case
@@ -91,7 +91,7 @@ export class KeychainManager {
   }
 
   async getEnvironmentVariables(): Promise<KeychainEntry[]> {
-    const credentials = await this.findCredentials();
+    const credentials = await this.findServiceCredentials();
     return credentials.map(({ account, password }) => ({
       key: account,
       value: password,
@@ -107,7 +107,7 @@ export class KeychainManager {
   }
 
   async clearAllEnvironmentVariables(): Promise<void> {
-    const credentials = await this.findCredentials();
+    const credentials = await this.findServiceCredentials();
     for (const { account } of credentials) {
       await this.deletePassword(account);
     }

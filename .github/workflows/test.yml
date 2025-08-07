@@ -31,8 +31,8 @@ jobs:
         run: bun install
 
       - name: Run tests
-        run: bun test
+        run: bun run test
 
       - name: Run tests with coverage
-        run: bun test --coverage
+        run: bun run test:coverage
         if: matrix.os == 'ubuntu-latest' # Only run coverage on one OS to save time

@@ -1,42 +1,40 @@
-import { describe, expect, test, beforeEach, mock } from 'bun:test'
+import { describe, expect, test, beforeEach, vi } from 'vitest'
 
-// Set up mocks before any imports
-const mockSetPassword = mock(() => { })
-const mockGetPassword = mock(() => 'test-value')
-const mockDeletePassword = mock(() => true)
-const mockFindCredentials = mock((_service: string): any[] => [])
-
-// Mock the Entry constructor
-const MockEntry = mock((_service: string, _account: string) => ({
-  setPassword: mockSetPassword,
-  getPassword: mockGetPassword,
-  deletePassword: mockDeletePassword,
-}))
-
-// Mock the module
-mock.module('@napi-rs/keyring', () => ({
-  Entry: MockEntry,
-  findCredentials: mockFindCredentials,
-}))
+// Mock the module - this gets hoisted
+vi.mock('@napi-rs/keyring')
 
 // Import after mocking
 import { KeychainManager } from './keychain-manager'
+import { Entry, findCredentials } from '@napi-rs/keyring'
+
+// Create mocked functions
+const MockedEntry = vi.mocked(Entry)
+const mockedFindCredentials = vi.mocked(findCredentials)
 
 describe('KeychainManager', () => {
   let manager: KeychainManager
+  let mockSetPassword: any
+  let mockGetPassword: any
+  let mockDeletePassword: any
 
   beforeEach(() => {
     // Clear all mock calls
-    mockSetPassword.mockClear()
-    mockGetPassword.mockClear()
-    mockDeletePassword.mockClear()
-    mockFindCredentials.mockClear()
-    MockEntry.mockClear()
+    vi.clearAllMocks()
 
-    // Reset mock return values
-    mockGetPassword.mockReturnValue('test-value')
-    mockDeletePassword.mockReturnValue(true)
-    mockFindCredentials.mockReturnValue([])
+    // Set up mock functions
+    mockSetPassword = vi.fn()
+    mockGetPassword = vi.fn(() => 'test-value')
+    mockDeletePassword = vi.fn(() => true)
+
+    // Mock Entry constructor
+    MockedEntry.mockImplementation((_service: string, _account: string) => ({
+      setPassword: mockSetPassword,
+      getPassword: mockGetPassword,
+      deletePassword: mockDeletePassword,
+    } as any))
+
+    // Mock findCredentials
+    mockedFindCredentials.mockReturnValue([])
 
     // Create new manager instance
     manager = new KeychainManager('test-service', 'development')
@@ -45,7 +43,7 @@ describe('KeychainManager', () => {
   test('should set password with environment suffix', async () => {
     await manager.setPassword('TEST_KEY', 'test-value')
 
-    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
+    expect(MockedEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
     expect(mockSetPassword).toHaveBeenCalledWith('test-value')
   })
 
@@ -53,7 +51,7 @@ describe('KeychainManager', () => {
     const noEnvManager = new KeychainManager('test-service')
     await noEnvManager.setPassword('TEST_KEY', 'test-value')
 
-    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY')
+    expect(MockedEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY')
     expect(mockSetPassword).toHaveBeenCalledWith('test-value')
   })
 
@@ -62,7 +60,7 @@ describe('KeychainManager', () => {
 
     const result = await manager.getPassword('TEST_KEY')
 
-    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
+    expect(MockedEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
     expect(mockGetPassword).toHaveBeenCalled()
     expect(result).toBe('test-value')
   })
@@ -82,7 +80,7 @@ describe('KeychainManager', () => {
 
     const result = await manager.deletePassword('TEST_KEY')
 
-    expect(MockEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
+    expect(MockedEntry).toHaveBeenCalledWith('test-service', 'TEST_KEY?env=development')
     expect(mockDeletePassword).toHaveBeenCalled()
     expect(result).toBe(true)
   })
@@ -98,7 +96,7 @@ describe('KeychainManager', () => {
   })
 
   test('should prioritize environment-specific credentials', async () => {
-    mockFindCredentials.mockReturnValue([
+    mockedFindCredentials.mockReturnValue([
       { account: 'KEY1', password: 'generic-value' },
       { account: 'KEY1?env=development', password: 'dev-value' },
       { account: 'KEY1?env=production', password: 'prod-value' },
@@ -106,9 +104,9 @@ describe('KeychainManager', () => {
       { account: 'KEY3', password: 'generic-only' },
     ])
 
-    const result = await manager.findCredentials()
+    const result = await manager.findServiceCredentials()
 
-    expect(mockFindCredentials).toHaveBeenCalledWith('test-service')
+    expect(mockedFindCredentials).toHaveBeenCalledWith('test-service')
     expect(result).toEqual([
       { account: 'KEY1', password: 'dev-value' },
       { account: 'KEY2', password: 'dev-only' },
@@ -118,13 +116,13 @@ describe('KeychainManager', () => {
 
   test('should return all generic credentials when no environment specified', async () => {
     const noEnvManager = new KeychainManager('test-service')
-    mockFindCredentials.mockReturnValue([
+    mockedFindCredentials.mockReturnValue([
       { account: 'KEY1', password: 'generic-value' },
       { account: 'KEY1?env=development', password: 'dev-value' },
       { account: 'KEY2', password: 'generic-only' },
     ])
 
-    const result = await noEnvManager.findCredentials()
+    const result = await noEnvManager.findServiceCredentials()
 
     expect(result).toEqual([
       { account: 'KEY1', password: 'generic-value' },
@@ -149,7 +147,7 @@ describe('KeychainManager', () => {
 
   describe('getEnvironmentVariables', () => {
     test('should return all environment variables', async () => {
-      mockFindCredentials.mockReturnValue([
+      mockedFindCredentials.mockReturnValue([
         { account: 'KEY1?env=development', password: 'value1' },
         { account: 'KEY2?env=development', password: 'value2' },
       ])
@@ -165,7 +163,7 @@ describe('KeychainManager', () => {
 
   describe('clearAllEnvironmentVariables', () => {
     test('should delete all environment variables', async () => {
-      mockFindCredentials.mockReturnValue([
+      mockedFindCredentials.mockReturnValue([
         { account: 'KEY1?env=development', password: 'value1' },
         { account: 'KEY2?env=development', password: 'value2' },
       ])

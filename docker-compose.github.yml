@@ -1,0 +1,20 @@
+services:
+  github-actions-exact:
+    build:
+      context: .
+      dockerfile: Dockerfile.github-actions
+    ports:
+      - "2223:22"
+    volumes:
+      - .:/home/runner/work/lpop/lpop
+    command: /bin/bash -c "/usr/sbin/sshd && tail -f /dev/null"
+
+  ubuntu-exact:
+    build:
+      context: .
+      dockerfile: Dockerfile.ubuntu-exact
+    ports:
+      - "2224:22"
+    volumes:
+      - .:/home/runner/work/lpop/lpop
+    command: /bin/bash -c "/usr/sbin/sshd && tail -f /dev/null"

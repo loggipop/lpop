@@ -1,0 +1,46 @@
+# Use the exact same image that GitHub Actions uses for ubuntu-latest
+FROM ghcr.io/actions/runner:latest
+
+# Or use a specific version that matches ubuntu-latest
+# FROM ghcr.io/actions/runner:2.321.0-ubuntu-22.04
+
+# Switch to root for setup
+USER root
+
+# Install additional dependencies
+RUN apt-get update && apt-get install -y \
+  openssh-server \
+  libsecret-1-dev \
+  unzip \
+  && rm -rf /var/lib/apt/lists/*
+
+# Configure SSH
+RUN mkdir /var/run/sshd
+RUN echo 'runner:password' | chpasswd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+# Allow runner user to use SSH
+RUN usermod -aG sudo runner
+
+# Set working directory
+WORKDIR /github/workspace
+
+# Copy project files
+COPY . .
+
+# Switch to runner user (same as GitHub Actions)
+USER runner
+
+# Install Bun with the exact same version as CI
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-1.2.19"
+ENV PATH="/home/runner/.bun/bin:$PATH"
+
+# Install dependencies
+RUN bun install
+
+EXPOSE 22
+
+# Switch back to root to start SSH
+USER root
+CMD ["/usr/sbin/sshd", "-D"]

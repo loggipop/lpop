@@ -38,8 +38,8 @@ export class LpopCLI {
       .description('Add environment variables from file or single variable')
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string) => {
-        const options = this.program.opts();
+      .action(async (input: string, cmdOptions) => {
+        const options = { ...this.program.opts(), ...cmdOptions };
         await this.handleAdd(input, options);
       });
 
@@ -49,8 +49,8 @@ export class LpopCLI {
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('-o, --output <file>', 'Output to .env file')
-      .action(async (key: string | undefined) => {
-        const options = this.program.opts();
+      .action(async (key: string | undefined, cmdOptions) => {
+        const options = { ...this.program.opts(), ...cmdOptions };
         await this.handleGet(key, options);
       });
 
@@ -59,8 +59,8 @@ export class LpopCLI {
       .description('Update environment variables from file or single variable')
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string) => {
-        const options = this.program.opts();
+      .action(async (input: string, cmdOptions) => {
+        const options = { ...this.program.opts(), ...cmdOptions };
         await this.handleUpdate(input, options);
       });
 
@@ -69,8 +69,8 @@ export class LpopCLI {
       .description('Remove specific environment variable')
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (key: string) => {
-        const options = this.program.opts();
+      .action(async (key: string, cmdOptions) => {
+        const options = { ...this.program.opts(), ...cmdOptions };
         await this.handleRemove(key, options);
       });
 
@@ -80,8 +80,8 @@ export class LpopCLI {
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('--confirm', 'Skip confirmation prompt')
-      .action(async () => {
-        const options = this.program.opts();
+      .action(async (cmdOptions) => {
+        const options = { ...this.program.opts(), ...cmdOptions };
         await this.handleClear(options);
       });
 

@@ -6,6 +6,21 @@ import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { EnvFileParser, EnvEntry } from './env-file-parser.js';
 import packageJson from '../package.json' with { type: 'json' };
 
+type Options = {
+  env?: string;
+  repo?: string;
+}
+
+type ClearOptions = Options & {
+  confirm?: boolean;
+}
+
+type GetOptions = Options & {
+  output?: string;
+}
+
+type CommandOptions = Options | ClearOptions | GetOptions;
+
 export class LpopCLI {
   private program: Command;
   private gitResolver: GitPathResolver;
@@ -27,8 +42,7 @@ export class LpopCLI {
       .argument('[input]', 'Path to .env file, variable assignment (KEY=value), or empty for current repo')
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string | undefined) => {
-        const options = this.program.opts();
+      .action(async (input: string | undefined, options: CommandOptions) => {
         await this.handleSmartCommand(input, options);
       });
 
@@ -38,8 +52,7 @@ export class LpopCLI {
       .description('Add environment variables from file or single variable')
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string, cmdOptions) => {
-        const options = { ...this.program.opts(), ...cmdOptions };
+      .action(async (input: string, options: CommandOptions) => {
         await this.handleAdd(input, options);
       });
 
@@ -49,8 +62,7 @@ export class LpopCLI {
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('-o, --output <file>', 'Output to .env file')
-      .action(async (key: string | undefined, cmdOptions) => {
-        const options = { ...this.program.opts(), ...cmdOptions };
+      .action(async (key: string | undefined, options: GetOptions) => {
         await this.handleGet(key, options);
       });
 
@@ -59,8 +71,7 @@ export class LpopCLI {
       .description('Update environment variables from file or single variable')
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (input: string, cmdOptions) => {
-        const options = { ...this.program.opts(), ...cmdOptions };
+      .action(async (input: string, options: CommandOptions) => {
         await this.handleUpdate(input, options);
       });
 
@@ -69,8 +80,7 @@ export class LpopCLI {
       .description('Remove specific environment variable')
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
-      .action(async (key: string, cmdOptions) => {
-        const options = { ...this.program.opts(), ...cmdOptions };
+      .action(async (key: string, options: CommandOptions) => {
         await this.handleRemove(key, options);
       });
 
@@ -80,8 +90,7 @@ export class LpopCLI {
       .option('-e, --env <environment>', 'Environment name')
       .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('--confirm', 'Skip confirmation prompt')
-      .action(async (cmdOptions) => {
-        const options = { ...this.program.opts(), ...cmdOptions };
+      .action(async (options: CommandOptions) => {
         await this.handleClear(options);
       });
 
@@ -93,7 +102,7 @@ export class LpopCLI {
       });
   }
 
-  private async handleSmartCommand(input: string | undefined, options: any): Promise<void> {
+  private async handleSmartCommand(input: string | undefined, options: CommandOptions): Promise<void> {
     try {
       // No input - get current repo's variables
       if (!input) {
@@ -125,7 +134,7 @@ export class LpopCLI {
     }
   }
 
-  private async handleAdd(input: string, options: any): Promise<void> {
+  private async handleAdd(input: string, options: { env?: string, repo?: string }): Promise<void> {
     const serviceName = await this.getServiceName(options);
     const keychain = new KeychainManager(serviceName, options.env);
 
@@ -155,7 +164,7 @@ export class LpopCLI {
    * @param key - The key to get
    * @param options - The options for the command
    */
-  private async handleGet(key: string | undefined, options: any): Promise<void> {
+  private async handleGet(key: string | undefined, options: GetOptions): Promise<void> {
     const serviceName = await this.getServiceName(options);
     console.log(chalk.blue(`Getting variables for ${serviceName} with repo ${options.repo} and env ${options.env}`));
     const keychain = new KeychainManager(serviceName, options.env);
@@ -199,12 +208,12 @@ export class LpopCLI {
     }
   }
 
-  private async handleUpdate(input: string, options: any): Promise<void> {
+  private async handleUpdate(input: string, options: CommandOptions): Promise<void> {
     // Update is the same as add - keychain overwrites existing values
     await this.handleAdd(input, options);
   }
 
-  private async handleRemove(key: string, options: any): Promise<void> {
+  private async handleRemove(key: string, options: CommandOptions): Promise<void> {
     const serviceName = await this.getServiceName(options);
     const keychain = new KeychainManager(serviceName, options.env);
 
@@ -221,7 +230,7 @@ export class LpopCLI {
     }
   }
 
-  private async handleClear(options: any): Promise<void> {
+  private async handleClear(options: ClearOptions): Promise<void> {
     const serviceName = await this.getServiceName(options);
     const keychain = new KeychainManager(serviceName, options.env);
 
@@ -248,7 +257,7 @@ export class LpopCLI {
     console.log(chalk.yellow('Use specific repo/env combinations to check for stored variables.'));
   }
 
-  private async getServiceName(options: { repo: string, env: string }): Promise<string> {
+  private async getServiceName(options: CommandOptions): Promise<string> {
     if (options.repo) {
       return `${getServicePrefix()}${options.repo}`;
     }

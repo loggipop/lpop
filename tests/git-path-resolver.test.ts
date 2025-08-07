@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
-import { GitPathResolver, isDevelopment, getServicePrefix } from '../src/git-path-resolver';
-import { simpleGit } from 'simple-git';
-import GitUrlParse from 'git-url-parse';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 
 vi.mock('simple-git');
 vi.mock('git-url-parse');
+
+import { simpleGit } from 'simple-git';
+import GitUrlParse from 'git-url-parse';
+import { GitPathResolver, isDevelopment, getServicePrefix } from '../src/git-path-resolver';
 
 describe('GitPathResolver', () => {
   let resolver: GitPathResolver;

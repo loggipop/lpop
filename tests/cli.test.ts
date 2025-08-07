@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, Mock, afterEach, MockInstance } from 'vitest';
 import { LpopCLI } from '../src/cli';
 import { KeychainManager } from '../src/keychain-manager';
 import { GitPathResolver } from '../src/git-path-resolver';
@@ -36,16 +36,16 @@ describe('LpopCLI', () => {
   let mockGitResolver: {
     generateServiceNameAsync: Mock;
   };
-  let consoleLogSpy: Mock;
-  let consoleErrorSpy: Mock;
-  let processExitSpy: Mock;
+  let consoleLogSpy: MockInstance;
+  let consoleErrorSpy: MockInstance;
+  let processExitSpy: MockInstance;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Setup console mocks
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit called');
     });
@@ -312,7 +312,7 @@ describe('LpopCLI', () => {
       (EnvFileParser.parseFile as any).mockRejectedValue(new Error('Parse error'));
 
       process.argv = ['node', 'lpop', 'add', '.env'];
-      
+
       try {
         await cli.run();
       } catch (error) {
@@ -327,7 +327,7 @@ describe('LpopCLI', () => {
       mockKeychainManager.getEnvironmentVariables.mockRejectedValue(new Error('Keychain error'));
 
       process.argv = ['node', 'lpop', 'get'];
-      
+
       try {
         await cli.run();
       } catch (error) {
@@ -342,7 +342,7 @@ describe('LpopCLI', () => {
   describe('Service Name Resolution', () => {
     it('should use git resolver when no repo specified', async () => {
       mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
-      
+
       process.argv = ['node', 'lpop', 'get'];
       await cli.run();
 
@@ -352,7 +352,7 @@ describe('LpopCLI', () => {
 
     it('should use custom repo when specified', async () => {
       mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
-      
+
       process.argv = ['node', 'lpop', 'get', '-r', 'custom/repo'];
       await cli.run();
 

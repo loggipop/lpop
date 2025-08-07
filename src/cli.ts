@@ -35,63 +35,64 @@ export class LpopCLI {
     this.program
       .name('lpop')
       .description('CLI tool for managing environment variables in the system keychain')
-      .version(packageJson.version);
+      .version(packageJson.version)
+      // Global options available to all commands
+      .option('-e, --env <environment>', 'Environment name')
+      .option('-r, --repo <repo>', 'Repository name (overrides git detection)');
 
     // Main command with smart inference
     this.program
       .argument('[input]', 'Path to .env file, variable assignment (KEY=value), or empty for current repo')
-      .option('-e, --env <environment>', 'Environment name')
-      .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string | undefined, options: CommandOptions) => {
         await this.handleSmartCommand(input, options);
       });
 
-    // Explicit commands
+    // Explicit commands (inherit global -e/-r options)
     this.program
       .command('add <input>')
       .description('Add environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name')
-      .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string, options: CommandOptions) => {
-        await this.handleAdd(input, options);
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleAdd(input, mergedOptions);
       });
 
     this.program
       .command('get [key]')
       .description('Get environment variables or specific variable')
-      .option('-e, --env <environment>', 'Environment name')
-      .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('-o, --output <file>', 'Output to .env file')
       .action(async (key: string | undefined, options: GetOptions) => {
-        await this.handleGet(key, options);
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleGet(key, mergedOptions);
       });
 
     this.program
       .command('update <input>')
       .description('Update environment variables from file or single variable')
-      .option('-e, --env <environment>', 'Environment name')
-      .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (input: string, options: CommandOptions) => {
-        await this.handleUpdate(input, options);
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleUpdate(input, mergedOptions);
       });
 
     this.program
       .command('remove <key>')
       .description('Remove specific environment variable')
-      .option('-e, --env <environment>', 'Environment name')
-      .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .action(async (key: string, options: CommandOptions) => {
-        await this.handleRemove(key, options);
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleRemove(key, mergedOptions);
       });
 
     this.program
       .command('clear')
       .description('Clear all environment variables for the repository/environment')
-      .option('-e, --env <environment>', 'Environment name')
-      .option('-r, --repo <repo>', 'Repository name (overrides git detection)')
       .option('--confirm', 'Skip confirmation prompt')
       .action(async (options: CommandOptions) => {
-        await this.handleClear(options);
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleClear(mergedOptions);
       });
 
     this.program
@@ -266,6 +267,6 @@ export class LpopCLI {
   }
 
   public async run(): Promise<void> {
-    await this.program.parseAsync();
+    await this.program.parseAsync(process.argv);
   }
 }

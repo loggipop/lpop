@@ -1,4 +1,4 @@
-import { Entry, findCredentials, Credential } from '@napi-rs/keyring';
+import { Entry, findCredentials, type Credential } from '@napi-rs/keyring';
 
 export interface KeychainEntry {
   key: string;
@@ -53,11 +53,11 @@ export class KeychainManager {
    *
    * @returns Promise resolving to an array of credential objects with account names (without env suffix) and passwords
    */
-  async findCredentials(): Promise<Array<{ account: string; password: string }>> {
+  async findServiceCredentials(): Promise<Array<{ account: string; password: string }>> {
     const credentials: Credential[] = findCredentials(this.serviceName);
 
-    // Build output map directly, prioritizing environment-specific values
-    const resultMap = new Map<string, string>();
+    // Create a record as it's more efficient than a map in this case
+    const credentialObj: Record<string, string> = {};
 
     for (const { account, password } of credentials) {
       const envMatch = account.match(/^(.+)\?env=(.+)$/);
@@ -69,18 +69,18 @@ export class KeychainManager {
 
         // Only add if it matches our target environment
         if (this.environment && env === this.environment) {
-          resultMap.set(baseAccount, password);
+          credentialObj[baseAccount] = password;
         }
       } else {
         // Generic account (no env suffix) - only add if not already set by environment-specific
-        if (!resultMap.has(account)) {
-          resultMap.set(account, password);
+        if (!credentialObj[account]) {
+          credentialObj[account] = password;
         }
       }
     }
 
     // Convert map to array format
-    return Object.entries(resultMap).map(([account, password]) => ({ account, password }));
+    return Object.entries(credentialObj).map(([account, password]) => ({ account, password }));
 
   }
 
@@ -91,7 +91,7 @@ export class KeychainManager {
   }
 
   async getEnvironmentVariables(): Promise<KeychainEntry[]> {
-    const credentials = await this.findCredentials();
+    const credentials = await this.findServiceCredentials();
     return credentials.map(({ account, password }) => ({
       key: account,
       value: password,
@@ -107,7 +107,7 @@ export class KeychainManager {
   }
 
   async clearAllEnvironmentVariables(): Promise<void> {
-    const credentials = await this.findCredentials();
+    const credentials = await this.findServiceCredentials();
     for (const { account } of credentials) {
       await this.deletePassword(account);
     }

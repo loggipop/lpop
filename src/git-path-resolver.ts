@@ -90,8 +90,6 @@ export class GitPathResolver {
 
   static extractRepoFromService(serviceName: string): string {
     const url = new URL(serviceName);
-    const org = url.hostname.split('://')[1];
-    const repo = url.pathname.split('/').slice(1);
-    return `${org}/${repo}`;
+    return url.hostname + url.pathname;
   }
 }

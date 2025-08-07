@@ -80,7 +80,7 @@ export class KeychainManager {
     }
 
     // Convert map to array format
-    return Object.entries(resultMap).map(([account, password]) => ({ account, password }));
+    return Array.from(resultMap, ([account, password]) => ({ account, password }));
 
   }
 

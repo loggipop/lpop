@@ -3,6 +3,9 @@
 	"version": "0.1.12",
 	"description": "A CLI tool for managing environment variables in the system keychain",
 	"type": "module",
+	"workspaces": [
+		"packages/*"
+	],
 	"bin": {
 		"lpop": "./bin/lpop"
 	},

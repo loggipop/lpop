@@ -1,0 +1,40 @@
+[package]
+name = "keychain-native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["napi8", "async", "tokio_rt"] }
+napi-derive = "2"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.0"
+security-framework-sys = "2.12"
+core-foundation = "0.10"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+secret-service = "4.0"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = ["Win32_Security_Credentials", "Win32_Foundation"] }
+
+[build-dependencies]
+napi-build = "2"
+
+[dev-dependencies]
+uuid = { version = "1.10", features = ["v4"] }
+tokio-test = "0.4"
+tempfile = "3.10"
+
+[profile.release]
+lto = true
+
+[profile.test]
+opt-level = 2

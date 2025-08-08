@@ -24,3 +24,4 @@ temp/
 # Platform binaries
 packages/lpop*/lpop*
 
+coverage/

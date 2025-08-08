@@ -1,4 +1,4 @@
-import { Entry, findCredentials, Credential } from '@napi-rs/keyring';
+import { Entry, findCredentials, type Credential } from '@napi-rs/keyring';
 
 export interface PasswordEntry {
   key: string;
@@ -45,9 +45,24 @@ export class PasswordStorage {
     }
   }
 
-  async findCredentials(): Promise<Array<{ account: string; password: string }>> {
+  /**
+   * Retrieves credentials from the keychain, prioritizing environment-specific values over generic ones.
+   *
+   * This method handles account names in two formats:
+   * - Environment-specific: `<account>?env=<environment>` (e.g., "myapp?env=prod")
+   * - Generic: `<account>` (e.g., "myapp")
+   *
+   * The method processes credentials in a single pass:
+   * 1. Environment-specific credentials matching the target environment are added/replace existing values
+   * 2. Generic credentials (without env suffix) are added only if no environment-specific value exists
+   *
+   * @returns Promise resolving to an array of credential objects with account names (without env suffix) and passwords
+   */
+  async findServiceCredentials(): Promise<Array<{ account: string; password: string }>> {
     const credentials: Credential[] = findCredentials(this.serviceName);
-    const resultMap = new Map<string, string>();
+
+    // Create a record as it's more efficient than a map in this case
+    const credentialObj: Record<string, string> = {};
 
     for (const { account, password } of credentials) {
       const envMatch = account.match(/^(.+)\?env=(.+)$/);
@@ -59,18 +74,19 @@ export class PasswordStorage {
 
         // Only add if it matches our target environment
         if (this.environment && env === this.environment) {
-          resultMap.set(baseAccount, password);
+          credentialObj[baseAccount] = password;
         }
       } else {
         // Generic account (no env suffix) - only add if not already set by environment-specific
-        if (!resultMap.has(account)) {
-          resultMap.set(account, password);
+        if (!credentialObj[account]) {
+          credentialObj[account] = password;
         }
       }
     }
 
     // Convert map to array format
-    return Array.from(resultMap.entries()).map(([account, password]) => ({ account, password }));
+    return Object.entries(credentialObj).map(([account, password]) => ({ account, password }));
+
   }
 
   async setEnvironmentVariables(variables: PasswordEntry[]): Promise<void> {
@@ -80,7 +96,7 @@ export class PasswordStorage {
   }
 
   async getEnvironmentVariables(): Promise<PasswordEntry[]> {
-    const credentials = await this.findCredentials();
+    const credentials = await this.findServiceCredentials();
     return credentials.map(({ account, password }) => ({
       key: account,
       value: password,
@@ -96,7 +112,7 @@ export class PasswordStorage {
   }
 
   async clearAllEnvironmentVariables(): Promise<void> {
-    const credentials = await this.findCredentials();
+    const credentials = await this.findServiceCredentials();
     for (const { account } of credentials) {
       await this.deletePassword(account);
     }

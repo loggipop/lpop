@@ -167,7 +167,9 @@ export class LpopCLI {
    */
   private async handleGet(key: string | undefined, options: GetOptions): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    console.log(chalk.blue(`Getting variables for ${serviceName} with repo ${options.repo} and env ${options.env}`));
+    let message = `Getting variables for ${serviceName}`;
+    if (options.env) message += ` for env "${options.env}"`;
+    console.log(chalk.blue(message));
     const passwordStore = new PasswordStorage(serviceName, options.env);
 
     try {

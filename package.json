@@ -7,13 +7,17 @@
 		"lpop": "./bin/lpop"
 	},
 	"scripts": {
-		"build:binaries": "./scripts/build-binary.sh",
-		"prepare-packages": "node scripts/prepare-packages.js",
+		"build:binaries": "bun run scripts/build-binary.js",
+		"build:binaries:sign": "bun run scripts/build-binary.js --sign",
+		"sign:windows": "bun run scripts/sign-windows.js",
+		"verify:windows": "bun run scripts/sign-windows.js verify",
+		"test:signing-setup": "powershell -File scripts/test-signing-setup.ps1",
+		"prepare-packages": "bun run scripts/prepare-packages.js",
 		"dev": "bun run src/index.ts",
 		"build": "tsc",
 		"clean": "rm -rf dist/ lpop lpop-*",
 		"prepack": "bun run build:binaries && bun run prepare-packages",
-		"postinstall": "node scripts/postinstall.js",
+		"postinstall": "bun run scripts/postinstall.js",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
 		"test:coverage": "vitest --coverage"

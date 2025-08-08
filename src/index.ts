@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { LpopCLI } from './cli.js';
+import { LpopCLI } from './cli';
 
 async function main() {
   const cli = new LpopCLI();

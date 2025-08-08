@@ -11,6 +11,26 @@ lpop stores your environment variables in the system keychain (macOS Keychain, W
 npm install -g lpop
 ```
 
+### 🔐 Code Signing (Windows)
+
+For Windows users, the executable is code-signed for security. If you're building from source:
+
+```bash
+# Test your signing setup
+bun run test:signing-setup
+
+# Build and sign (requires certificate)
+bun run build:binaries -- --sign --cert=path/to/cert.pfx --password=your_password
+
+# Or sign an existing binary
+bun run sign:windows sign path/to/cert.pfx your_password
+
+# Verify signature
+bun run verify:windows
+```
+
+See [CODE_SIGNING.md](./CODE_SIGNING.md) for detailed instructions.
+
 ## 📖 How It Works
 
 lpop automatically detects your git repository and organizes variables by project and environment. For example:
@@ -60,6 +80,11 @@ bun dev
 
 Or build and run:
 
+```bash
+bun build
+./lpop
+````
+
 # Store production variables
 
 lpop .env.production --env production
@@ -72,23 +97,14 @@ lpop --env staging
 
 ## 🎨 Visual Examples
 
-### 📥 Adding Variables
-
-```bash
-bun build
-./lpop
-````
-
 ### MacOS Keychain Note:
 
 Running the CLI via bun registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `bun dev` then running `./lpop` on the same repo will prompt for password every time.
 
 ## Installation
 
-$ lpop .env
-
 ```
-
+$ lpop .env
 ```
 
 📂 Reading .env file...

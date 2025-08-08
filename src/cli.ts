@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { existsSync } from 'fs';
-import { PasswordStorage } from './password-storage.js';
-import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
-import { EnvFileParser, EnvEntry } from './env-file-parser.js';
+import { PasswordStorage } from './password-storage';
+import { GitPathResolver, getServicePrefix } from './git-path-resolver';
+import { EnvFileParser, EnvEntry } from './env-file-parser';
 import packageJson from '../package.json' with { type: 'json' };
 
 type Options = {

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 lpop
+lpop.exe
 !bin/lpop
 .env*
 !.env.example

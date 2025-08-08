@@ -5,10 +5,10 @@ vi.mock('@napi-rs/keyring', () => ({
   findCredentials: vi.fn()
 }));
 import { Entry, findCredentials } from '@napi-rs/keyring';
-import { KeychainManager } from '../src/keychain-manager';
+import { PasswordStorage } from '../src/password-storage';
 
-describe('KeychainManager', () => {
-  let manager: KeychainManager;
+describe('PasswordStorage', () => {
+  let manager: PasswordStorage;
   let mockEntry: {
     setPassword: Mock;
     getPassword: Mock;
@@ -25,17 +25,17 @@ describe('KeychainManager', () => {
     };
 
     (Entry as unknown as Mock).mockImplementation(() => mockEntry);
-    manager = new KeychainManager('test-service', 'development');
+    manager = new PasswordStorage('test-service', 'development');
   });
 
   describe('constructor', () => {
     it('should create instance with service name and environment', () => {
-      const mgr = new KeychainManager('my-service', 'production');
+      const mgr = new PasswordStorage('my-service', 'production');
       expect(mgr).toBeDefined();
     });
 
     it('should create instance without environment', () => {
-      const mgr = new KeychainManager('my-service');
+      const mgr = new PasswordStorage('my-service');
       expect(mgr).toBeDefined();
     });
   });
@@ -49,7 +49,7 @@ describe('KeychainManager', () => {
     });
 
     it('should set password without environment suffix when no environment', async () => {
-      const noEnvManager = new KeychainManager('test-service');
+      const noEnvManager = new PasswordStorage('test-service');
       await noEnvManager.setPassword('API_KEY', 'secret123');
 
       expect(Entry).toHaveBeenCalledWith('test-service', 'API_KEY');
@@ -141,7 +141,7 @@ describe('KeychainManager', () => {
     });
 
     it('should handle credentials without environment', async () => {
-      const noEnvManager = new KeychainManager('test-service');
+      const noEnvManager = new PasswordStorage('test-service');
       (findCredentials as Mock).mockReturnValue([
         { account: 'API_KEY', password: 'value1' },
         { account: 'DB_URL', password: 'value2' }

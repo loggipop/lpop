@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach, MockInstance } from 'vitest';
 import { LpopCLI } from '../src/cli';
-import { KeychainManager } from '../src/keychain-manager';
+import { PasswordStorage } from '../src/password-storage';
 import { GitPathResolver } from '../src/git-path-resolver';
 import { EnvFileParser } from '../src/env-file-parser';
 import { existsSync } from 'fs';
 import chalk from 'chalk';
 
-vi.mock('../src/keychain-manager');
+vi.mock('../src/password-storage');
 vi.mock('../src/git-path-resolver');
 vi.mock('../src/env-file-parser', () => ({
   EnvFileParser: {
@@ -27,7 +27,7 @@ vi.mock('chalk', () => ({
 
 describe('LpopCLI', () => {
   let cli: LpopCLI;
-  let mockKeychainManager: {
+  let mockPasswordStorage: {
     setEnvironmentVariables: Mock;
     getEnvironmentVariables: Mock;
     removeEnvironmentVariable: Mock;
@@ -50,14 +50,14 @@ describe('LpopCLI', () => {
       throw new Error('process.exit called');
     });
 
-    // Setup KeychainManager mock
-    mockKeychainManager = {
+    // Setup PasswordStorage mock
+    mockPasswordStorage = {
       setEnvironmentVariables: vi.fn(),
       getEnvironmentVariables: vi.fn(),
       removeEnvironmentVariable: vi.fn(),
       clearAllEnvironmentVariables: vi.fn()
     };
-    (KeychainManager as any).mockImplementation(() => mockKeychainManager);
+    (PasswordStorage as any).mockImplementation(() => mockPasswordStorage);
 
     // Setup GitPathResolver mock
     mockGitResolver = {
@@ -76,7 +76,7 @@ describe('LpopCLI', () => {
 
   describe('Smart Command', () => {
     it('should get variables when no input provided', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([
         { key: 'API_KEY', value: 'secret123' }
       ]);
 
@@ -84,7 +84,7 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop'];
       await cli.run();
 
-      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
+      expect(mockPasswordStorage.getEnvironmentVariables).toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith('API_KEY=secret123');
     });
 
@@ -101,7 +101,7 @@ describe('LpopCLI', () => {
       await cli.run();
 
       expect(EnvFileParser.parseFile).toHaveBeenCalledWith('.env');
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalled();
+      expect(mockPasswordStorage.setEnvironmentVariables).toHaveBeenCalled();
     });
 
     it('should add single variable when input contains equals', async () => {
@@ -116,12 +116,12 @@ describe('LpopCLI', () => {
       await cli.run();
 
       expect(EnvFileParser.parseVariable).toHaveBeenCalledWith('API_KEY=secret123');
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalled();
+      expect(mockPasswordStorage.setEnvironmentVariables).toHaveBeenCalled();
     });
 
     it('should output to file when input is non-existent path', async () => {
       (existsSync as any).mockReturnValue(false);
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([
         { key: 'API_KEY', value: 'secret123' }
       ]);
 
@@ -129,7 +129,7 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'output.env'];
       await cli.run();
 
-      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
+      expect(mockPasswordStorage.getEnvironmentVariables).toHaveBeenCalled();
       expect(EnvFileParser.writeFile).toHaveBeenCalledWith('output.env', expect.any(Array));
     });
   });
@@ -147,7 +147,7 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'add', '.env'];
       await cli.run();
 
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
+      expect(mockPasswordStorage.setEnvironmentVariables).toHaveBeenCalledWith([
         { key: 'API_KEY', value: 'secret123' },
         { key: 'DB_URL', value: 'postgres://localhost' }
       ]);
@@ -164,7 +164,7 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'add', 'API_KEY=secret123'];
       await cli.run();
 
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
+      expect(mockPasswordStorage.setEnvironmentVariables).toHaveBeenCalledWith([
         { key: 'API_KEY', value: 'secret123' }
       ]);
     });
@@ -179,7 +179,7 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'add', 'API_KEY=secret123', '-r', 'custom/repo'];
       await cli.run();
 
-      expect(KeychainManager).toHaveBeenCalledWith(expect.stringContaining('custom/repo'), undefined);
+      expect(PasswordStorage).toHaveBeenCalledWith(expect.stringContaining('custom/repo'), undefined);
     });
 
     it('should use environment option', async () => {
@@ -192,13 +192,13 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'add', 'API_KEY=secret123', '-e', 'production'];
       await cli.run();
 
-      expect(KeychainManager).toHaveBeenCalledWith(expect.any(String), 'production');
+      expect(PasswordStorage).toHaveBeenCalledWith(expect.any(String), 'production');
     });
   });
 
   describe('Get Command', () => {
     it('should get all variables', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([
         { key: 'API_KEY', value: 'secret123' },
         { key: 'DB_URL', value: 'postgres://localhost' }
       ]);
@@ -206,13 +206,13 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'get'];
       await cli.run();
 
-      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
+      expect(mockPasswordStorage.getEnvironmentVariables).toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith('API_KEY=secret123');
       expect(consoleLogSpy).toHaveBeenCalledWith('DB_URL=postgres://localhost');
     });
 
     it('should get specific variable', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([
         { key: 'API_KEY', value: 'secret123' },
         { key: 'DB_URL', value: 'postgres://localhost' }
       ]);
@@ -225,7 +225,7 @@ describe('LpopCLI', () => {
     });
 
     it('should output to file', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([
         { key: 'API_KEY', value: 'secret123' }
       ]);
 
@@ -238,7 +238,7 @@ describe('LpopCLI', () => {
     });
 
     it('should show message when no variables found', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([]);
 
       process.argv = ['node', 'lpop', 'get'];
       await cli.run();
@@ -247,7 +247,7 @@ describe('LpopCLI', () => {
     });
 
     it('should show message when specific variable not found', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([
         { key: 'OTHER_KEY', value: 'value' }
       ]);
 
@@ -260,17 +260,17 @@ describe('LpopCLI', () => {
 
   describe('Remove Command', () => {
     it('should remove variable successfully', async () => {
-      mockKeychainManager.removeEnvironmentVariable.mockResolvedValue(true);
+      mockPasswordStorage.removeEnvironmentVariable.mockResolvedValue(true);
 
       process.argv = ['node', 'lpop', 'remove', 'API_KEY'];
       await cli.run();
 
-      expect(mockKeychainManager.removeEnvironmentVariable).toHaveBeenCalledWith('API_KEY');
+      expect(mockPasswordStorage.removeEnvironmentVariable).toHaveBeenCalledWith('API_KEY');
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Removed variable API_KEY'));
     });
 
     it('should show message when variable not found', async () => {
-      mockKeychainManager.removeEnvironmentVariable.mockResolvedValue(false);
+      mockPasswordStorage.removeEnvironmentVariable.mockResolvedValue(false);
 
       process.argv = ['node', 'lpop', 'remove', 'API_KEY'];
       await cli.run();
@@ -284,7 +284,7 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'clear'];
       await cli.run();
 
-      expect(mockKeychainManager.clearAllEnvironmentVariables).not.toHaveBeenCalled();
+      expect(mockPasswordStorage.clearAllEnvironmentVariables).not.toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('This will remove ALL'));
     });
 
@@ -292,7 +292,7 @@ describe('LpopCLI', () => {
       process.argv = ['node', 'lpop', 'clear', '--confirm'];
       await cli.run();
 
-      expect(mockKeychainManager.clearAllEnvironmentVariables).toHaveBeenCalled();
+      expect(mockPasswordStorage.clearAllEnvironmentVariables).toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Cleared all variables'));
     });
   });
@@ -324,7 +324,7 @@ describe('LpopCLI', () => {
     });
 
     it('should handle errors in get command', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockRejectedValue(new Error('Keychain error'));
+      mockPasswordStorage.getEnvironmentVariables.mockRejectedValue(new Error('Keychain error'));
 
       process.argv = ['node', 'lpop', 'get'];
 
@@ -341,23 +341,23 @@ describe('LpopCLI', () => {
 
   describe('Service Name Resolution', () => {
     it('should use git resolver when no repo specified', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([]);
 
       process.argv = ['node', 'lpop', 'get'];
       await cli.run();
 
       expect(mockGitResolver.generateServiceNameAsync).toHaveBeenCalled();
-      expect(KeychainManager).toHaveBeenCalledWith('lpop://user/repo', undefined);
+      expect(PasswordStorage).toHaveBeenCalledWith('lpop://user/repo', undefined);
     });
 
     it('should use custom repo when specified', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
+      mockPasswordStorage.getEnvironmentVariables.mockResolvedValue([]);
 
       process.argv = ['node', 'lpop', 'get', '-r', 'custom/repo'];
       await cli.run();
 
       expect(mockGitResolver.generateServiceNameAsync).not.toHaveBeenCalled();
-      expect(KeychainManager).toHaveBeenCalledWith(expect.stringContaining('custom/repo'), undefined);
+      expect(PasswordStorage).toHaveBeenCalledWith(expect.stringContaining('custom/repo'), undefined);
     });
   });
 });

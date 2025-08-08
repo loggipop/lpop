@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { existsSync } from 'fs';
-import { KeychainManager } from './keychain-manager.js';
+import { PasswordStorage } from './password-storage.js';
 import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { EnvFileParser, EnvEntry } from './env-file-parser.js';
 import packageJson from '../package.json' with { type: 'json' };
@@ -127,7 +127,7 @@ export class LpopCLI {
 
   private async handleAdd(input: string, options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName, options.env);
+    const passwordStore = new PasswordStorage(serviceName, options.env);
 
     try {
       let entries: EnvEntry[];
@@ -142,7 +142,7 @@ export class LpopCLI {
         entries = [EnvFileParser.parseVariable(input)];
       }
 
-      await keychain.setEnvironmentVariables(entries);
+      await passwordStore.setEnvironmentVariables(entries);
       console.log(chalk.green(`✓ Added ${entries.length} variables to ${serviceName}`));
     } catch (error) {
       console.error(chalk.red(`Error adding variables: ${error instanceof Error ? error.message : String(error)}`));
@@ -158,10 +158,10 @@ export class LpopCLI {
   private async handleGet(key: string | undefined, options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
     console.log(chalk.blue(`Getting variables for ${serviceName} with repo ${options.repo} and env ${options.env}`));
-    const keychain = new KeychainManager(serviceName, options.env);
+    const passwordStore = new PasswordStorage(serviceName, options.env);
 
     try {
-      const variables = await keychain.getEnvironmentVariables();
+      const variables = await passwordStore.getEnvironmentVariables();
 
       if (variables.length === 0) {
         console.log(chalk.yellow(`No variables found for ${serviceName}`));
@@ -206,10 +206,10 @@ export class LpopCLI {
 
   private async handleRemove(key: string, options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName, options.env);
+    const passwordStore = new PasswordStorage(serviceName, options.env);
 
     try {
-      const removed = await keychain.removeEnvironmentVariable(key);
+      const removed = await passwordStore.removeEnvironmentVariable(key);
       if (removed) {
         console.log(chalk.green(`✓ Removed variable ${key} from ${serviceName}`));
       } else {
@@ -223,7 +223,7 @@ export class LpopCLI {
 
   private async handleClear(options: any): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    const keychain = new KeychainManager(serviceName, options.env);
+    const passwordStore = new PasswordStorage(serviceName, options.env);
 
     try {
       if (!options.confirm) {
@@ -232,7 +232,7 @@ export class LpopCLI {
         return;
       }
 
-      await keychain.clearAllEnvironmentVariables();
+      await passwordStore.clearAllEnvironmentVariables();
       console.log(chalk.green(`✓ Cleared all variables for ${serviceName}`));
     } catch (error) {
       console.error(chalk.red(`Error clearing variables: ${error instanceof Error ? error.message : String(error)}`));

@@ -10,6 +10,7 @@
 		"build:binaries": "./scripts/build-binary.sh",
 		"prepare-packages": "node scripts/prepare-packages.js",
 		"dev": "bun run src/index.ts",
+		"build": "tsc",
 		"clean": "rm -rf dist/ lpop lpop-*",
 		"prepack": "bun run build:binaries && bun run prepare-packages",
 		"postinstall": "node scripts/postinstall.js"

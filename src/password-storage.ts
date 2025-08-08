@@ -1,30 +1,35 @@
 import { Entry, findCredentials, Credential } from '@napi-rs/keyring';
 
-export interface KeychainEntry {
+export interface PasswordEntry {
   key: string;
   value: string;
 }
 
-export class KeychainManager {
-  constructor(private serviceName: string, private environment?: string) { }
+/**
+ * Password storage that works across platforms using @napi-rs/keyring
+ * The library handles platform differences internally (Windows Credential Manager, macOS Keychain, etc.)
+ */
+export class PasswordStorage {
+  constructor(private serviceName: string, private environment?: string) {}
 
+  /**
+   * Gets the full account name with environment suffix if specified
+   * @param account The base account name
+   * @returns The full account name with environment suffix
+   */
   private getFullAccountName(account: string): string {
     const envString = this.environment ? `?env=${this.environment}` : '';
     return `${account}${envString}`;
   }
 
-  private getEntry(account: string): Entry {
-    return new Entry(this.serviceName, this.getFullAccountName(account));
-  }
-
   async setPassword(account: string, password: string): Promise<void> {
-    const entry = this.getEntry(account);
+    const entry = new Entry(this.serviceName, this.getFullAccountName(account));
     entry.setPassword(password);
   }
 
   async getPassword(account: string): Promise<string | null> {
     try {
-      const entry = this.getEntry(account);
+      const entry = new Entry(this.serviceName, this.getFullAccountName(account));
       return entry.getPassword();
     } catch {
       return null;
@@ -33,30 +38,15 @@ export class KeychainManager {
 
   async deletePassword(account: string): Promise<boolean> {
     try {
-      const entry = this.getEntry(account);
+      const entry = new Entry(this.serviceName, this.getFullAccountName(account));
       return entry.deletePassword();
     } catch {
       return false;
     }
   }
 
-  /**
-   * Retrieves credentials from the keychain, prioritizing environment-specific values over generic ones.
-   *
-   * This method handles account names in two formats:
-   * - Environment-specific: `<account>?env=<environment>` (e.g., "myapp?env=prod")
-   * - Generic: `<account>` (e.g., "myapp")
-   *
-   * The method processes credentials in a single pass:
-   * 1. Environment-specific credentials matching the target environment are added/replace existing values
-   * 2. Generic credentials (without env suffix) are added only if no environment-specific value exists
-   *
-   * @returns Promise resolving to an array of credential objects with account names (without env suffix) and passwords
-   */
   async findCredentials(): Promise<Array<{ account: string; password: string }>> {
     const credentials: Credential[] = findCredentials(this.serviceName);
-
-    // Build output map directly, prioritizing environment-specific values
     const resultMap = new Map<string, string>();
 
     for (const { account, password } of credentials) {
@@ -80,17 +70,16 @@ export class KeychainManager {
     }
 
     // Convert map to array format
-    return Object.entries(resultMap).map(([account, password]) => ({ account, password }));
-
+    return Array.from(resultMap.entries()).map(([account, password]) => ({ account, password }));
   }
 
-  async setEnvironmentVariables(variables: KeychainEntry[]): Promise<void> {
+  async setEnvironmentVariables(variables: PasswordEntry[]): Promise<void> {
     for (const { key, value } of variables) {
       await this.setPassword(key, value);
     }
   }
 
-  async getEnvironmentVariables(): Promise<KeychainEntry[]> {
+  async getEnvironmentVariables(): Promise<PasswordEntry[]> {
     const credentials = await this.findCredentials();
     return credentials.map(({ account, password }) => ({
       key: account,

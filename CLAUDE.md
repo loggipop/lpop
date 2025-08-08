@@ -32,7 +32,7 @@ bun start
 
 ### Core Components
 
-- **KeychainManager** (`src/keychain-manager.ts`) - Handles all @napi-rs/keyring operations for storing/retrieving variables
+- **PasswordManager** (`src/password-storage.ts`) - Storage layer for storing passwords/secrets.
 - **GitPathResolver** (`src/git-path-resolver.ts`) - Generates service names from git remotes in format `owner/repo?env=environment`
 - **EnvFileParser** (`src/env-file-parser.ts`) - Parses .env files while preserving comments and formatting
 - **LpopCLI** (`src/cli.ts`) - Main CLI interface with smart command inference
@@ -71,7 +71,7 @@ The main command `lpop <input>` intelligently determines the operation:
 
 ## Important Notes
 
-- Uses `@napi-rs/keyring` instead of `keytar` for better Node 24+ compatibility
+- Uses `@napi-rs/keyring` for password management
 - The `findCredentials()` function works natively with @napi-rs/keyring
 - Service names follow URL-like format for consistent organization
 - Smart CLI inference reduces the need for explicit commands

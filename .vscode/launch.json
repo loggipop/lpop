@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug lpop list",
+      "type": "bun",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/index.ts",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "args": ["list"],
+      "watch": true
+    },
+    {
+      "name": "Debug lpop add .env.dev",
+      "type": "bun",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/index.ts",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "args": ["add", ".env.dev"]
+    },
+    {
+      "name": "Debug lpop .env",
+      "type": "bun",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/index.ts",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "args": [".env"],
+      "watch": true
+    }
+  ]
+}

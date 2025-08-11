@@ -2,7 +2,12 @@
 
 > **Securely manage environment variables in your system keychain** 🔐
 
-lpop stores your environment variables in the system keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service), making them secure and easy to manage across projects.
+lpop stores your environment variables in the system keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service), making them secure and easy to manage.
+
+1. Never lose your secrets - Call `lpop .env.local` to store all your secrets from an existing file
+2. Delete your repos - when you clone again, just call `lpop .env.local` to get your secrets back
+3. Clone multiple times or use git trees - call `lpop .env.local` and your secrets appear
+4. Use with AI Coding tools - run Claude, or Cursor on 20 different copies of the repo, without ever giving it access to secrets
 
 ## 🚀 Installation
 
@@ -247,7 +252,7 @@ lpop will use the current directory name as the project identifier. Your variabl
 <details>
 <summary><strong>Can I share variables with my team?</strong></summary>
 
-lpop stores variables locally in your keychain. To share with your team:
+A share feature is coming real soon. For now, to share with your team:
 
 1. Export variables: `lpop .env.share`
 2. Share the file securely (encrypted email, password manager, etc.)

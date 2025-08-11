@@ -1,6 +1,6 @@
 {
 	"name": "lpop",
-	"version": "0.1.12",
+	"version": "0.1.13",
 	"description": "A CLI tool for managing environment variables in the system keychain",
 	"type": "module",
 	"bin": {

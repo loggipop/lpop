@@ -8,6 +8,7 @@
 	},
 	"scripts": {
 		"build:binaries": "./scripts/build-binary.sh",
+		"build:sign-notarize": "./scripts/build-sign-notarize.sh",
 		"prepare-packages": "node scripts/prepare-packages.js",
 		"dev": "bun run src/index.ts",
 		"clean": "rm -rf dist/ lpop lpop-*",

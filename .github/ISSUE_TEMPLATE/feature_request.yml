@@ -1,0 +1,117 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for lpop
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide as much detail as possible to help us understand your request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem does this feature solve? What use case does it address?
+      placeholder: |
+        I'm frustrated when...
+        It would be helpful if...
+        Currently, there's no way to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see
+      placeholder: |
+        I would like lpop to...
+        This could work by...
+        The interface might look like...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or features?
+      placeholder: |
+        I considered...
+        Another approach might be...
+        Existing tools like X do this by...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How important is this feature to you?
+      options:
+        - "Nice to have"
+        - "Would be helpful"
+        - "Important for my workflow"
+        - "Critical need"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature Area
+      description: Which part of lpop does this relate to?
+      options:
+        - "CLI interface"
+        - "Environment variable management"
+        - "Keychain integration"
+        - "Git integration"
+        - "File parsing (.env files)"
+        - "Security/encryption"
+        - "Cross-platform compatibility"
+        - "Documentation"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Usage Examples
+      description: Show how this feature would be used
+      render: shell
+      placeholder: |
+        # Example command usage:
+        lpop new-feature --option value
+        
+        # Expected output:
+        Feature working as expected...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, mockups, or references that might help
+      placeholder: |
+        Links to similar implementations...
+        Screenshots or mockups...
+        Related issues or discussions...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues and discussions for similar feature requests
+          required: true
+        - label: This feature would benefit multiple users, not just my specific use case
+          required: true
+        - label: I understand this is a request and not a guarantee of implementation
+          required: true

@@ -119,10 +119,9 @@ jobs:
 
   build-windows:
     needs: check-certificates
-    if: needs.check-certificates.outputs.has-windows-cert == 'true'
     runs-on: windows-latest
     outputs:
-      artifacts: ${{ steps.build.outputs.artifacts }}
+      artifacts: ${{ steps.build-signed.outputs.artifacts || steps.build-unsigned.outputs.artifacts }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -136,13 +135,15 @@ jobs:
         run: bun install
 
       - name: Import Code-Signing Certificate
+        if: needs.check-certificates.outputs.has-windows-cert == 'true'
         run: |
           echo "${{ secrets.WINDOWS_CERTIFICATE }}" | base64 -d > certificate.p12
           Import-PfxCertificate -FilePath certificate.p12 -CertStoreLocation Cert:\LocalMachine\My -Password (ConvertTo-SecureString -String "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" -AsPlainText -Force)
         shell: powershell
 
       - name: Build and sign Windows binaries
-        id: build
+        if: needs.check-certificates.outputs.has-windows-cert == 'true'
+        id: build-signed
         run: |
           # Build Windows binary
           mkdir -p dist
@@ -158,6 +159,17 @@ jobs:
           echo "artifacts=windows-x64" >> $env:GITHUB_OUTPUT
         shell: powershell
 
+      - name: Build unsigned Windows binaries
+        if: needs.check-certificates.outputs.has-windows-cert == 'false'
+        id: build-unsigned
+        run: |
+          # Build Windows binary (unsigned)
+          mkdir -p dist
+          bun build src/index.ts --target=bun-windows-x64 --compile --minify --outfile=dist/lpop-windows-x64.exe
+
+          echo "artifacts=windows-x64" >> $env:GITHUB_OUTPUT
+        shell: powershell
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -166,10 +178,9 @@ jobs:
 
   build-linux:
     needs: check-certificates
-    if: needs.check-certificates.outputs.has-linux-cert == 'true'
     runs-on: ubuntu-latest
     outputs:
-      artifacts: ${{ steps.build.outputs.artifacts }}
+      artifacts: ${{ steps.build-signed.outputs.artifacts || steps.build-unsigned.outputs.artifacts }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -183,16 +194,19 @@ jobs:
         run: bun install
 
       - name: Install signing tools
+        if: needs.check-certificates.outputs.has-linux-cert == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y debsigs gnupg
 
       - name: Import GPG key for signing
+        if: needs.check-certificates.outputs.has-linux-cert == 'true'
         run: |
           echo "${{ secrets.LINUX_CERTIFICATE }}" | base64 -d | gpg --import --batch
 
       - name: Build and sign Linux binaries
-        id: build
+        if: needs.check-certificates.outputs.has-linux-cert == 'true'
+        id: build-signed
         run: |
           # Build Linux binaries
           mkdir -p dist
@@ -208,7 +222,22 @@ jobs:
 
           echo "artifacts=linux-x64,linux-arm64" >> $GITHUB_OUTPUT
 
-      - name: Upload Linux artifacts
+      - name: Build unsigned Linux binaries
+        if: needs.check-certificates.outputs.has-linux-cert == 'false'
+        id: build-unsigned
+        run: |
+          # Build Linux binaries (unsigned)
+          mkdir -p dist
+          bun build src/index.ts --target=bun-linux-x64 --compile --minify --outfile=dist/lpop-linux-x64
+          bun build src/index.ts --target=bun-linux-arm64 --compile --minify --outfile=dist/lpop-linux-arm64
+
+          # Make binaries executable
+          chmod +x dist/lpop-linux-x64 dist/lpop-linux-arm64
+
+          echo "artifacts=linux-x64,linux-arm64" >> $GITHUB_OUTPUT
+
+      - name: Upload Linux artifacts (signed)
+        if: needs.check-certificates.outputs.has-linux-cert == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: linux-binaries
@@ -217,6 +246,15 @@ jobs:
             dist/lpop-linux-arm64
             dist/lpop-linux-x64.asc
             dist/lpop-linux-arm64.asc
+
+      - name: Upload Linux artifacts (unsigned)
+        if: needs.check-certificates.outputs.has-linux-cert == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: |
+            dist/lpop-linux-x64
+            dist/lpop-linux-arm64
 
   upload-to-release:
     needs: [check-certificates, build-macos, build-windows, build-linux]
@@ -306,19 +344,30 @@ jobs:
             "
           done
 
-      - name: Copy signed binaries to platform packages
+      - name: Copy binaries to platform packages
         run: |
-          # Only copy binaries that were successfully signed
-          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ] && [ -f dist/lpop-linux-x64 ]; then
-            echo "Copying signed Linux x64 binary"
+          # Copy binaries that were built (signed or unsigned)
+          
+          # Linux binaries
+          if [ -f dist/lpop-linux-x64 ]; then
+            if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
+              echo "Copying signed Linux x64 binary"
+            else
+              echo "Copying unsigned Linux x64 binary"
+            fi
             cp dist/lpop-linux-x64 packages/lpop-linux-x64/
           fi
 
-          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ] && [ -f dist/lpop-linux-arm64 ]; then
-            echo "Copying signed Linux arm64 binary"
+          if [ -f dist/lpop-linux-arm64 ]; then
+            if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
+              echo "Copying signed Linux arm64 binary"
+            else
+              echo "Copying unsigned Linux arm64 binary"
+            fi
             cp dist/lpop-linux-arm64 packages/lpop-linux-arm64/
           fi
 
+          # macOS binaries (only if signed - requirement remains)
           if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ] && [ -f dist/lpop-darwin-x64 ]; then
             echo "Copying signed macOS x64 binary"
             cp dist/lpop-darwin-x64 packages/lpop-darwin-x64/
@@ -329,44 +378,57 @@ jobs:
             cp dist/lpop-darwin-arm64 packages/lpop-darwin-arm64/
           fi
 
-          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ] && [ -f dist/lpop-windows-x64.exe ]; then
-            echo "Copying signed Windows x64 binary"
+          # Windows binaries
+          if [ -f dist/lpop-windows-x64.exe ]; then
+            if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
+              echo "Copying signed Windows x64 binary"
+            else
+              echo "Copying unsigned Windows x64 binary"
+            fi
             cp dist/lpop-windows-x64.exe packages/lpop-windows-x64/
           fi
 
-          echo "Platform packages with signed binaries:"
+          echo "Platform packages with binaries:"
           for pkg in packages/lpop-*/; do
             if [ -f "$pkg/lpop-"* ]; then
               echo "  - $(basename $pkg)"
             fi
           done
 
-      - name: Publish platform-specific packages with signed binaries
+      - name: Publish platform-specific packages
         run: |
-          # Only publish packages that have signed binaries
+          # Publish packages that have binaries (signed or unsigned)
           published_count=0
 
-          if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
-            if [ -f packages/lpop-linux-x64/lpop-linux-x64 ]; then
-              echo "Publishing lpop-linux-x64..."
-              cd packages/lpop-linux-x64
-              bun publish --access public
-              cd ../..
-              published_count=$((published_count + 1))
+          # Linux packages
+          if [ -f packages/lpop-linux-x64/lpop-linux-x64 ]; then
+            if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
+              echo "Publishing lpop-linux-x64 (signed)..."
+            else
+              echo "Publishing lpop-linux-x64 (unsigned)..."
             fi
-            
-            if [ -f packages/lpop-linux-arm64/lpop-linux-arm64 ]; then
-              echo "Publishing lpop-linux-arm64..."
-              cd packages/lpop-linux-arm64
-              bun publish --access public
-              cd ../..
-              published_count=$((published_count + 1))
+            cd packages/lpop-linux-x64
+            bun publish --access public
+            cd ../..
+            published_count=$((published_count + 1))
+          fi
+          
+          if [ -f packages/lpop-linux-arm64/lpop-linux-arm64 ]; then
+            if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
+              echo "Publishing lpop-linux-arm64 (signed)..."
+            else
+              echo "Publishing lpop-linux-arm64 (unsigned)..."
             fi
+            cd packages/lpop-linux-arm64
+            bun publish --access public
+            cd ../..
+            published_count=$((published_count + 1))
           fi
 
+          # macOS packages (only signed)
           if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ]; then
             if [ -f packages/lpop-darwin-x64/lpop-darwin-x64 ]; then
-              echo "Publishing lpop-darwin-x64..."
+              echo "Publishing lpop-darwin-x64 (signed)..."
               cd packages/lpop-darwin-x64
               bun publish --access public
               cd ../..
@@ -374,7 +436,7 @@ jobs:
             fi
             
             if [ -f packages/lpop-darwin-arm64/lpop-darwin-arm64 ]; then
-              echo "Publishing lpop-darwin-arm64..."
+              echo "Publishing lpop-darwin-arm64 (signed)..."
               cd packages/lpop-darwin-arm64
               bun publish --access public
               cd ../..
@@ -382,37 +444,40 @@ jobs:
             fi
           fi
 
-          if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
-            if [ -f packages/lpop-windows-x64/lpop-windows-x64.exe ]; then
-              echo "Publishing lpop-windows-x64..."
-              cd packages/lpop-windows-x64
-              bun publish --access public
-              cd ../..
-              published_count=$((published_count + 1))
+          # Windows packages
+          if [ -f packages/lpop-windows-x64/lpop-windows-x64.exe ]; then
+            if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
+              echo "Publishing lpop-windows-x64 (signed)..."
+            else
+              echo "Publishing lpop-windows-x64 (unsigned)..."
             fi
+            cd packages/lpop-windows-x64
+            bun publish --access public
+            cd ../..
+            published_count=$((published_count + 1))
           fi
 
-          echo "Published $published_count platform packages with signed binaries"
+          echo "Published $published_count platform packages"
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Update package.json with available platform packages
         run: |
-          # Create a temporary package.json with only the available platform packages
+          # Create a temporary package.json with packages that have binaries
           node -e "
           const fs = require('fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           const optDeps = {};
 
-          if ('${{ needs.check-certificates.outputs.has-linux-cert }}' === 'true') {
-            if (fs.existsSync('packages/lpop-linux-x64/lpop-linux-x64')) {
-              optDeps['lpop-linux-x64'] = pkg.version;
-            }
-            if (fs.existsSync('packages/lpop-linux-arm64/lpop-linux-arm64')) {
-              optDeps['lpop-linux-arm64'] = pkg.version;
-            }
+          // Include Linux packages if binaries exist (signed or unsigned)
+          if (fs.existsSync('packages/lpop-linux-x64/lpop-linux-x64')) {
+            optDeps['lpop-linux-x64'] = pkg.version;
+          }
+          if (fs.existsSync('packages/lpop-linux-arm64/lpop-linux-arm64')) {
+            optDeps['lpop-linux-arm64'] = pkg.version;
           }
 
+          // Include macOS packages only if signed (requirement remains)
           if ('${{ needs.check-certificates.outputs.has-macos-cert }}' === 'true') {
             if (fs.existsSync('packages/lpop-darwin-x64/lpop-darwin-x64')) {
               optDeps['lpop-darwin-x64'] = pkg.version;
@@ -422,10 +487,9 @@ jobs:
             }
           }
 
-          if ('${{ needs.check-certificates.outputs.has-windows-cert }}' === 'true') {
-            if (fs.existsSync('packages/lpop-windows-x64/lpop-windows-x64.exe')) {
-              optDeps['lpop-windows-x64'] = pkg.version;
-            }
+          // Include Windows packages if binaries exist (signed or unsigned)
+          if (fs.existsSync('packages/lpop-windows-x64/lpop-windows-x64.exe')) {
+            optDeps['lpop-windows-x64'] = pkg.version;
           }
 
           pkg.optionalDependencies = optDeps;

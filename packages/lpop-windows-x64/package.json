@@ -1,6 +1,6 @@
 {
   "name": "lpop-windows-x64",
-  "version": "0.1.11",
+  "version": "0.1.13",
   "description": "lpop binary for Windows x64",
   "os": [
     "win32"

@@ -1,28 +1,27 @@
-## Closes
+## Related Issue
 
-Closes #
+Closes #<issue>
 
-## What does this PR do?
+## Summary of Changes
 
-Brief description of the changes.
+<!-- Brief description of the changes. -->
 
-## Type of change
+## Risk Assessment
 
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
+<!-- Assess the risk level of this PR:
+- Low: Minimal impact, straightforward changes.
+- Medium: Potential for some edge cases or indirect effects.
+- High: Could affect critical functionality or many users.
+-->
 
-## How was this tested?
+- [ ] Low
+- [ ] Medium
+- [ ] High
 
-- [ ] Ran `bun test`
-- [ ] Ran `bun build`
-- [ ] Tested manually
+## Additional Notes
 
-Describe any manual testing:
+<!-- Add any other context or comments about the PR here -->
 
-## Checklist
+## Screenshots (if applicable)
 
-- [ ] My code follows the project's style
-- [ ] I have tested these changes
-- [ ] No sensitive data is exposed
+<!-- Attach any screenshots that help explain your changes -->

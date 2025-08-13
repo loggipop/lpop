@@ -36,30 +36,31 @@
 	},
 	"homepage": "https://github.com/loggipop/lpop#readme",
 	"devDependencies": {
+		"@biomejs/biome": "2.1.4",
+		"@napi-rs/keyring": "^1.1.8",
 		"@types/bun": "latest",
 		"@types/node": "^24.2.0",
 		"@vitest/coverage-v8": "^3.2.4",
 		"@vitest/ui": "^3.2.4",
-		"happy-dom": "^18.0.1",
-		"tsx": "^4.19.2",
-		"typescript": "^5.7.2",
-		"vitest": "^3.2.4",
-		"@napi-rs/keyring": "^1.1.8",
 		"chalk": "^5.4.1",
 		"commander": "^14.0.0",
 		"dotenv": "^17.2.0",
 		"git-url-parse": "^16.1.0",
-		"simple-git": "^3.28.0"
+		"happy-dom": "^18.0.1",
+		"simple-git": "^3.28.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2",
+		"vitest": "^3.2.4"
 	},
 	"engines": {
 		"node": ">=24.0.0"
 	},
 	"optionalDependencies": {
-		"lpop-linux-x64": "0.1.13",
-		"lpop-linux-arm64": "0.1.13",
-		"lpop-darwin-x64": "0.1.13",
-		"lpop-darwin-arm64": "0.1.13",
-		"lpop-windows-x64": "0.1.13"
+		"lpop-linux-x64": "*",
+		"lpop-linux-arm64": "*",
+		"lpop-darwin-x64": "*",
+		"lpop-darwin-arm64": "*",
+		"lpop-windows-x64": "*"
 	},
 	"files": [
 		"bin/lpop",

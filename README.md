@@ -18,18 +18,17 @@ npm install -g lpop
 
 ## 📖 How It Works
 
-lpop automatically detects your git repository and organizes variables by project and environment. For example:
+lpop automatically detects your git repository and organizes variables by project and environment:
 
 ```
 🔐 System Keychain
 ├── 📁 lpop://user/project
 │   ├── 🔑 API_KEY - repo level api key
 │   └── 🔑 SECRET_TOKEN - repo level token
-├── 📁 lpop://user/project
-│   ├── 🔑 DATABASE_URL?env=development - development database
-└── 📁 lpop://user/project
-    ├── 🔑 DATABASE_URL?env=production - production database
-
+├── 📁 lpop://user/project?env=development
+│   └── 🔑 DATABASE_URL - development database
+└── 📁 lpop://user/project?env=production
+    └── 🔑 DATABASE_URL - production database
 ```
 
 ## 🎯 Quick Start
@@ -37,8 +36,7 @@ lpop automatically detects your git repository and organizes variables by projec
 ### 1️⃣ Store your environment variables
 
 ```bash
-# From a .env file.
-# if it exists, variables will be synced to the system keychain
+# From a .env file
 lpop .env.local
 
 # Or add a single variable
@@ -48,54 +46,33 @@ lpop API_KEY=secret123
 ### 2️⃣ Retrieve your variables
 
 ```bash
-# Get all variables for current repo
+# Get all variables and write to .env.local file
+# Uses .env.example as template if available
 lpop
 
-# Sync from the system keychain to a file if it does not exist
-# Run the same command to read or write.
-# This makes it super easy to clone or use git worktrees to work in parallel using AI
-lpop .env.local
+# Or specify a different output file
+lpop .env.dev
 ```
 
 ### 3️⃣ Use different environments
 
 ```bash
-bun dev
-```
-
-Or build and run:
-
 # Store production variables
-
 lpop .env.production --env production
 
 # Retrieve staging variables
-
 lpop --env staging
-
-````
+```
 
 ## 🎨 Visual Examples
 
 ### 📥 Adding Variables
 
 ```bash
-bun build
-./lpop
-````
-
-### MacOS Keychain Note:
-
-Running the CLI via bun registers the keys in macOS Keychain with 'bun' rather than 'lpop' binary so if you swap between the methods you will be prompted for password entry on the second method you use e.g. if you first use `bun dev` then running `./lpop` on the same repo will prompt for password every time.
-
-## Installation
-
 $ lpop .env
-
 ```
 
 ```
-
 📂 Reading .env file...
 🔐 Storing in: lpop://acme/app
 
@@ -103,22 +80,37 @@ $ lpop .env
 • DATABASE_URL
 • API_KEY
 • JWT_SECRET
-
-````
-
-### 📤 Getting Variables
-
-```bash
-$ lpop
-````
-
 ```
-🔐 Repository: github.com/acme/app
-🌍 Environment: development
 
-DATABASE_URL=postgresql://localhost:5432/myapp
-API_KEY=sk_live_abc123xyz
-JWT_SECRET=super-secret-key-here
+### 📤 Getting Variables with .env.example Template
+
+When you have a `.env.example` file, lpop uses it as a template:
+
+**`.env.example`:**
+
+```env
+# Database configuration
+DATABASE_URL=
+DB_PASSWORD=
+
+# API configuration
+API_KEY=
+API_SECRET=
+```
+
+**Running `lpop` produces `.env.local`:**
+
+```env
+# Database configuration
+DATABASE_URL=postgres://localhost:5432/mydb
+DB_PASSWORD=
+
+# API configuration
+API_KEY=sk-1234567890abcdef
+API_SECRET=
+
+# Additional variables from keychain
+EXTRA_VAR=some_value
 ```
 
 ### 🔄 Switching Environments
@@ -131,9 +123,7 @@ $ lpop --env production
 🔐 Repository: github.com/acme/app
 🌍 Environment: production
 
-DATABASE_URL=postgresql://prod.db.com:5432/app
-API_KEY=sk_prod_xyz789abc
-JWT_SECRET=production-secret-key
+✅ 3 variables written to .env.local using .env.example template
 ```
 
 ## 📚 Command Reference
@@ -142,12 +132,12 @@ JWT_SECRET=production-secret-key
 
 lpop intelligently determines what you want to do:
 
-| Command           | What it does                       |
-| ----------------- | ---------------------------------- |
-| `lpop`            | Get all variables for current repo |
-| `lpop .env`       | Add/update variables from file     |
-| `lpop KEY=value`  | Add/update a single variable       |
-| `lpop output.env` | Export variables to file           |
+| Command          | What it does                              |
+| ---------------- | ----------------------------------------- |
+| `lpop`           | Get all variables and write to .env.local |
+| `lpop .env`      | Add/update variables from file            |
+| `lpop KEY=value` | Add/update a single variable              |
+| `lpop .env.dev`  | Export variables to specific file         |
 
 ### 📝 Explicit Commands
 
@@ -165,9 +155,8 @@ lpop add .env --env production   # To specific environment
 #### 📖 Get Variables
 
 ```bash
-lpop get                         # All variables
+lpop get                         # All variables to .env.local
 lpop get API_KEY                 # Specific variable
-lpop get -o backup.env           # Export to file
 lpop get --env staging           # From specific environment
 ```
 
@@ -203,7 +192,7 @@ git clone https://github.com/acme/project.git
 cd project
 
 # 2. Get the development environment variables
-lpop .env.local
+lpop
 
 # 3. Start developing!
 npm run dev
@@ -266,11 +255,23 @@ Simply run `lpop .env` in each project directory. Your existing .env files will 
 
 </details>
 
+<details>
+<summary><strong>How does the .env.example template work?</strong></summary>
+
+When you run `lpop` and a `.env.example` file exists:
+
+1. **Template Structure**: Maintains organization and comments from `.env.example`
+2. **Variable Matching**: Keychain variables matching template keys get values inserted
+3. **Additional Variables**: Extra keychain variables are added at the end in alphabetical order
+4. **Fallback**: If `.env.example` doesn't exist, uses standard format
+
+</details>
+
 ## 🛠️ Troubleshooting
 
 ### 🍎 macOS Keychain Prompts
 
-When switching between `pnpm dev` and the installed binary, macOS may prompt for keychain access. This is normal - the system sees them as different applications.
+When switching between `bun dev` and the installed binary, macOS may prompt for keychain access. This is normal - the system sees them as different applications.
 
 ### 🔑 Permission Denied
 

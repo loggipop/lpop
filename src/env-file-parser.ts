@@ -175,7 +175,7 @@ export class EnvFileParser {
 
   private static needsQuotes(value: string): boolean {
     // Quote if contains spaces, special characters, or is empty
-    return /[\s#"'$`\\]/.test(value) || value === '';
+    return /[\s#"'$`\\]/.test(value);
   }
 
   static fromKeyValuePairs(pairs: Record<string, string>): VariableEntry[] {

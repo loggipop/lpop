@@ -210,7 +210,7 @@ DB_URL=postgres://localhost`;
 
       const content = EnvFileParser.generateContent(entries);
 
-      expect(content).toBe('EMPTY=""\n');
+      expect(content).toBe('EMPTY=\n');
     });
 
     it('should quote values with special characters', () => {

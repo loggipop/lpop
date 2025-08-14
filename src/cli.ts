@@ -209,29 +209,9 @@ export class LpopCLI {
         }
       } else {
         // Get all variables
-        if (options.output) {
+        let outputFile = options.output || '.env.local';
           // Check if .env.example exists and use it as template
           const envExamplePath = '.env.example';
-          if (existsSync(envExamplePath)) {
-            console.log(chalk.blue(`Found .env.example, using as template...`));
-            const mergedEntries = await EnvFileParser.mergeWithEnvExample(envExamplePath, variables);
-            await EnvFileParser.writeFile(options.output, mergedEntries);
-            console.log(chalk.green(`✓ ${mergedEntries.length} variables written to ${options.output} using .env.example template`));
-          } else {
-            // Convert KeychainEntry to VariableEntry
-            const variableEntries: VariableEntry[] = variables.map(v => ({
-              type: 'variable',
-              key: v.key,
-              value: v.value
-            }));
-            await EnvFileParser.writeFile(options.output, variableEntries);
-            console.log(chalk.green(`✓ ${variables.length} variables written to ${options.output}`));
-          }
-        } else {
-          // Default behavior: output to .env.local file with .env.example template if available
-          const outputFile = '.env.local';
-          const envExamplePath = '.env.example';
-          
           if (existsSync(envExamplePath)) {
             console.log(chalk.blue(`Found .env.example, using as template...`));
             const mergedEntries = await EnvFileParser.mergeWithEnvExample(envExamplePath, variables);
@@ -247,7 +227,6 @@ export class LpopCLI {
             await EnvFileParser.writeFile(outputFile, variableEntries);
             console.log(chalk.green(`✓ ${variables.length} variables written to ${outputFile}`));
           }
-        }
       }
     } catch (error) {
       console.error(chalk.red(`Error getting variables: ${error instanceof Error ? error.message : String(error)}`));

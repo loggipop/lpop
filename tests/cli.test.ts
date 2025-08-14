@@ -70,11 +70,6 @@ describe('LpopCLI', () => {
   });
 
   afterEach(() => {
-    // Clear all mocks after each test to prevent state leakage
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
     processExitSpy.mockRestore();

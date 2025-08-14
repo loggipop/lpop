@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { existsSync } from 'fs';
-import { KeychainManager } from './keychain-manager.js';
+import { KeychainManager, KeychainEntry } from './keychain-manager.js';
 import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
-import { EnvFileParser, EnvEntry } from './env-file-parser.js';
+import { EnvFileParser, EnvEntry, VariableEntry } from './env-file-parser.js';
 import packageJson from '../package.json' with { type: 'json' };
 
 type Options = {
@@ -126,8 +126,8 @@ export class LpopCLI {
         return;
       }
 
-      // Treat as file path that might be stored
-      console.log(chalk.blue(`Checking for stored variables...`));
+      // Treat as output filename for getting variables
+      console.log(chalk.blue(`Outputting variables to ${input}...`));
       await this.handleGet(undefined, { ...options, output: input });
     } catch (error) {
       console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
@@ -147,12 +147,22 @@ export class LpopCLI {
         const parsed = await EnvFileParser.parseFile(input);
         entries = parsed.entries;
         console.log(chalk.green(`Parsed ${entries.length} variables from ${input}`));
+        
+        // Report ignored entries with empty values
+        if (parsed.ignoredCount > 0) {
+          console.log(chalk.yellow(`⚠️  Ignored ${parsed.ignoredCount} entries with empty values`));
+        }
       } else {
         // Parse single variable
         entries = [EnvFileParser.parseVariable(input)];
       }
 
-      await keychain.setEnvironmentVariables(entries);
+      // Convert EnvEntry to KeychainEntry for the keychain manager
+      const keychainEntries = entries
+        .filter((entry): entry is VariableEntry => entry.type === 'variable')
+        .map(entry => ({ key: entry.key, value: entry.value }));
+      
+      await keychain.setEnvironmentVariables(keychainEntries);
       console.log(chalk.green(`✓ Added ${entries.length} variables to ${serviceName}`));
     } catch (error) {
       console.error(chalk.red(`Error adding variables: ${error instanceof Error ? error.message : String(error)}`));
@@ -183,7 +193,13 @@ export class LpopCLI {
         const variable = variables.find((v) => v.key === key);
         if (variable) {
           if (options.output) {
-            await EnvFileParser.writeFile(options.output, [variable]);
+            // Convert KeychainEntry to VariableEntry
+            const variableEntry: VariableEntry = {
+              type: 'variable',
+              key: variable.key,
+              value: variable.value
+            };
+            await EnvFileParser.writeFile(options.output, [variableEntry]);
             console.log(chalk.green(`✓ Variable ${key} written to ${options.output}`));
           } else {
             console.log(`${variable.key}=${variable.value}`);
@@ -194,12 +210,42 @@ export class LpopCLI {
       } else {
         // Get all variables
         if (options.output) {
-          await EnvFileParser.writeFile(options.output, variables);
-          console.log(chalk.green(`✓ ${variables.length} variables written to ${options.output}`));
+          // Check if .env.example exists and use it as template
+          const envExamplePath = '.env.example';
+          if (existsSync(envExamplePath)) {
+            console.log(chalk.blue(`Found .env.example, using as template...`));
+            const mergedEntries = await EnvFileParser.mergeWithEnvExample(envExamplePath, variables);
+            await EnvFileParser.writeFile(options.output, mergedEntries);
+            console.log(chalk.green(`✓ ${mergedEntries.length} variables written to ${options.output} using .env.example template`));
+          } else {
+            // Convert KeychainEntry to VariableEntry
+            const variableEntries: VariableEntry[] = variables.map(v => ({
+              type: 'variable',
+              key: v.key,
+              value: v.value
+            }));
+            await EnvFileParser.writeFile(options.output, variableEntries);
+            console.log(chalk.green(`✓ ${variables.length} variables written to ${options.output}`));
+          }
         } else {
-          console.log(chalk.blue(`Environment variables for ${serviceName}:`));
-          for (const { key: varKey, value } of variables) {
-            console.log(`${varKey}=${value}`);
+          // Default behavior: output to .env.local file with .env.example template if available
+          const outputFile = '.env.local';
+          const envExamplePath = '.env.example';
+          
+          if (existsSync(envExamplePath)) {
+            console.log(chalk.blue(`Found .env.example, using as template...`));
+            const mergedEntries = await EnvFileParser.mergeWithEnvExample(envExamplePath, variables);
+            await EnvFileParser.writeFile(outputFile, mergedEntries);
+            console.log(chalk.green(`✓ ${mergedEntries.length} variables written to ${outputFile} using .env.example template`));
+          } else {
+            // Convert KeychainEntry to VariableEntry
+            const variableEntries: VariableEntry[] = variables.map(v => ({
+              type: 'variable',
+              key: v.key,
+              value: v.value
+            }));
+            await EnvFileParser.writeFile(outputFile, variableEntries);
+            console.log(chalk.green(`✓ ${variables.length} variables written to ${outputFile}`));
           }
         }
       }
@@ -208,6 +254,8 @@ export class LpopCLI {
       process.exit(1);
     }
   }
+
+
 
   private async handleUpdate(input: string, options: CommandOptions): Promise<void> {
     // Update is the same as add - keychain overwrites existing values

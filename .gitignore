@@ -5,6 +5,8 @@ lpop
 .env*
 !.env.example
 
+.vscode/
+
 # Rust
 target/
 Cargo.lock

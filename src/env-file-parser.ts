@@ -1,16 +1,43 @@
 import { readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
+import chalk from 'chalk';
+import type { KeychainEntry } from './keychain-manager.js';
 
-export interface EnvEntry {
+export type EnvEntry = VariableEntry | CommentEntry | EmptyEntry;
+
+export interface VariableEntry {
+  type: 'variable';
   key: string;
   value: string;
   comment?: string;
+}
+
+export interface CommentEntry {
+  type: 'comment';
+  comment: string;
+}
+
+export interface EmptyEntry {
+  type: 'empty';
 }
 
 export interface ParsedEnvFile {
   entries: EnvEntry[];
   comments: string[];
   originalContent: string;
+  ignoredCount: number;
+  structure: FileStructure;
+}
+
+export interface FileStructure {
+  lines: StructureLine[];
+}
+
+export interface StructureLine {
+  type: 'comment' | 'variable' | 'empty';
+  content?: string;
+  entry?: EnvEntry;
+  originalIndex: number;
 }
 
 export class EnvFileParser {
@@ -27,16 +54,30 @@ export class EnvFileParser {
     const lines = content.split('\n');
     const entries: EnvEntry[] = [];
     const comments: string[] = [];
+    const structure: StructureLine[] = [];
+    let ignoredCount = 0;
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       const trimmed = line.trim();
 
-      // Skip empty lines
-      if (!trimmed) continue;
+      // Handle empty lines
+      if (!trimmed) {
+        structure.push({
+          type: 'empty',
+          originalIndex: i,
+        });
+        continue;
+      }
 
       // Handle full-line comments
       if (trimmed.startsWith('#')) {
         comments.push(trimmed);
+        structure.push({
+          type: 'comment',
+          content: trimmed,
+          originalIndex: i,
+        });
         continue;
       }
 
@@ -45,7 +86,7 @@ export class EnvFileParser {
       if (match) {
         const [, keyPart, valuePart] = match;
         const key = keyPart.trim();
-        
+
         // Extract inline comment if present
         const valueMatch = valuePart.match(/^(.*?)(\s*#.*)?$/);
         const value = valueMatch ? valueMatch[1].trim() : valuePart.trim();
@@ -54,18 +95,37 @@ export class EnvFileParser {
         // Remove quotes if present
         const cleanValue = this.removeQuotes(value);
 
-        entries.push({
+        // Create the entry
+        const entry: VariableEntry = {
+          type: 'variable',
           key,
           value: cleanValue,
-          comment
+          comment,
+        };
+
+        // Always add the entry, but count empty values as ignored
+        entries.push(entry);
+
+        // Add to structure
+        structure.push({
+          type: 'variable',
+          entry,
+          originalIndex: i,
         });
+
+        // Count entries with empty values for reporting
+        if (!cleanValue) {
+          ignoredCount++;
+        }
       }
     }
 
     return {
       entries,
       comments,
-      originalContent: content
+      originalContent: content,
+      ignoredCount,
+      structure: { lines: structure },
     };
   }
 
@@ -87,20 +147,27 @@ export class EnvFileParser {
     }
 
     // Add environment variables
-    for (const { key, value, comment } of entries) {
-      const quotedValue = this.needsQuotes(value) ? `"${value}"` : value;
-      const line = comment 
-        ? `${key}=${quotedValue} ${comment}`
-        : `${key}=${quotedValue}`;
-      lines.push(line);
+    for (const entry of entries) {
+      switch (entry.type) {
+        case 'comment':
+          lines.push(entry.comment);
+          break;
+        case 'empty':
+          lines.push(''); // Empty line
+          break;
+        case 'variable':
+          const quotedValue = this.needsQuotes(entry.value) ? `"${entry.value}"` : entry.value;
+          const line = entry.comment ? `${entry.key}=${quotedValue} ${entry.comment}` : `${entry.key}=${quotedValue}`;
+          lines.push(line);
+          break;
+      }
     }
 
     return lines.join('\n') + (lines.length > 0 ? '\n' : '');
   }
 
   private static removeQuotes(value: string): string {
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       return value.slice(1, -1);
     }
     return value;
@@ -111,21 +178,24 @@ export class EnvFileParser {
     return /[\s#"'$`\\]/.test(value) || value === '';
   }
 
-  static fromKeyValuePairs(pairs: Record<string, string>): EnvEntry[] {
+  static fromKeyValuePairs(pairs: Record<string, string>): VariableEntry[] {
     return Object.entries(pairs).map(([key, value]) => ({
+      type: 'variable',
       key,
-      value
+      value,
     }));
   }
 
   static toKeyValuePairs(entries: EnvEntry[]): Record<string, string> {
-    return entries.reduce((acc, { key, value }) => {
-      acc[key] = value;
+    return entries.reduce((acc, entry) => {
+      if (entry.type === 'variable') {
+        acc[entry.key] = entry.value;
+      }
       return acc;
     }, {} as Record<string, string>);
   }
 
-  static parseVariable(variableString: string): EnvEntry {
+  static parseVariable(variableString: string): VariableEntry {
     const match = variableString.match(/^([^=]+?)=(.*)$/);
     if (!match) {
       throw new Error(`Invalid variable format: ${variableString}. Expected KEY=value`);
@@ -133,8 +203,104 @@ export class EnvFileParser {
 
     const [, key, value] = match;
     return {
+      type: 'variable',
       key: key.trim(),
-      value: this.removeQuotes(value.trim())
+      value: this.removeQuotes(value.trim()),
     };
+  }
+
+  /**
+   * Merges keychain variables with .env.example template
+   * @param envExamplePath - Path to .env.example file
+   * @param keychainVariables - Variables from keychain
+   * @returns Merged environment entries
+   */
+  static async mergeWithEnvExample(envExamplePath: string, keychainVariables: KeychainEntry[]): Promise<EnvEntry[]> {
+    try {
+      // Parse .env.example to get template structure
+      const template = await EnvFileParser.parseFile(envExamplePath);
+      const keychainMap = new Map(keychainVariables.map((v) => [v.key, v.value]));
+
+      const mergedEntries: EnvEntry[] = [];
+      const usedKeys = new Set<string>();
+
+      // Process template structure to maintain exact layout
+      for (const structureLine of template.structure.lines) {
+        if (structureLine.type === 'comment') {
+          // Add standalone comments
+          mergedEntries.push({
+            type: 'comment',
+            comment: structureLine.content!,
+          });
+        } else if (structureLine.type === 'empty') {
+          // Add empty lines
+          mergedEntries.push({
+            type: 'empty',
+          });
+        } else if (
+          structureLine.type === 'variable' &&
+          structureLine.entry &&
+          structureLine.entry.type === 'variable'
+        ) {
+          const templateEntry = structureLine.entry as VariableEntry;
+          const keychainValue = keychainMap.get(templateEntry.key);
+
+          if (keychainValue !== undefined) {
+            // Variable exists in keychain, use the actual value
+            mergedEntries.push({
+              type: 'variable',
+              key: templateEntry.key,
+              value: keychainValue,
+              comment: templateEntry.comment,
+            });
+            usedKeys.add(templateEntry.key);
+          } else {
+            // Variable not in keychain, keep template entry as-is (empty value)
+            mergedEntries.push(templateEntry);
+          }
+        }
+      }
+
+      // Add remaining keychain variables not in template (sorted alphabetically)
+      const remainingVariables = keychainVariables
+        .filter((v) => !usedKeys.has(v.key))
+        .sort((a, b) => a.key.localeCompare(b.key));
+
+      if (remainingVariables.length > 0) {
+        // Add a separator entry with empty key and comment to create a visual separator
+        if (mergedEntries.length > 0) {
+          mergedEntries.push({
+            type: 'empty',
+          });
+          mergedEntries.push({
+            type: 'comment',
+            comment: '# Additional variables from keychain',
+          });
+        }
+
+        // Convert KeychainEntry to VariableEntry
+        const remainingVariableEntries: VariableEntry[] = remainingVariables.map((v) => ({
+          type: 'variable',
+          key: v.key,
+          value: v.value,
+        }));
+
+        mergedEntries.push(...remainingVariableEntries);
+      }
+
+      return mergedEntries;
+    } catch (error) {
+      // In case the .env.example no longer exists or other filesystem errors then we fallback to not using the template.
+      console.log(
+        chalk.yellow(`Warning: Could not parse .env.example: ${error instanceof Error ? error.message : String(error)}`)
+      );
+      console.log(chalk.yellow('Falling back to standard output format'));
+      // Convert KeychainEntry to VariableEntry for fallback
+      return keychainVariables.map((v) => ({
+        type: 'variable',
+        key: v.key,
+        value: v.value,
+      }));
+    }
   }
 }

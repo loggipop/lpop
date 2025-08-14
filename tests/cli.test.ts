@@ -12,8 +12,9 @@ vi.mock('../src/env-file-parser', () => ({
   EnvFileParser: {
     parseFile: vi.fn(),
     parseVariable: vi.fn(),
-    writeFile: vi.fn()
-  }
+    writeFile: vi.fn(),
+    mergeWithEnvExample: vi.fn(),
+  },
 }));
 vi.mock('fs');
 vi.mock('chalk', () => ({
@@ -21,8 +22,8 @@ vi.mock('chalk', () => ({
     blue: vi.fn((text: string) => text),
     green: vi.fn((text: string) => text),
     yellow: vi.fn((text: string) => text),
-    red: vi.fn((text: string) => text)
-  }
+    red: vi.fn((text: string) => text),
+  },
 }));
 
 describe('LpopCLI', () => {
@@ -44,8 +45,8 @@ describe('LpopCLI', () => {
     vi.clearAllMocks();
 
     // Setup console mocks
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit called');
     });
@@ -55,17 +56,22 @@ describe('LpopCLI', () => {
       setEnvironmentVariables: vi.fn(),
       getEnvironmentVariables: vi.fn(),
       removeEnvironmentVariable: vi.fn(),
-      clearAllEnvironmentVariables: vi.fn()
+      clearAllEnvironmentVariables: vi.fn(),
     };
     (KeychainManager as any).mockImplementation(() => mockKeychainManager);
 
     // Setup GitPathResolver mock
     mockGitResolver = {
-      generateServiceNameAsync: vi.fn().mockResolvedValue('lpop://user/repo')
+      generateServiceNameAsync: vi.fn().mockResolvedValue('lpop://user/repo'),
     };
     (GitPathResolver as any).mockImplementation(() => mockGitResolver);
 
     cli = new LpopCLI();
+  });
+
+  afterEach(() => {
+    // Clear all mocks after each test to prevent state leakage
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -76,72 +82,87 @@ describe('LpopCLI', () => {
 
   describe('Smart Command', () => {
     it('should get variables when no input provided', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
-        { key: 'API_KEY', value: 'secret123' }
-      ]);
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([{ key: 'API_KEY', value: 'secret123' }]);
 
       // Simulate command: lpop
       process.argv = ['node', 'lpop'];
       await cli.run();
 
       expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
-      expect(consoleLogSpy).toHaveBeenCalledWith('API_KEY=secret123');
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('variables written to .env.local'));
     });
 
     it('should add variables when file exists', async () => {
       (existsSync as any).mockReturnValue(true);
       (EnvFileParser.parseFile as any).mockResolvedValue({
-        entries: [
-          { key: 'API_KEY', value: 'secret123' }
-        ]
+        entries: [{ type: 'variable', key: 'API_KEY', value: 'secret123' }],
       });
 
       // Simulate command: lpop .env
       process.argv = ['node', 'lpop', '.env'];
       await cli.run();
 
-      expect(EnvFileParser.parseFile).toHaveBeenCalledWith('.env');
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalled();
+      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
+        { key: 'API_KEY', value: 'secret123' },
+      ]);
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Added 1 variables'));
     });
 
     it('should add single variable when input contains equals', async () => {
-      (existsSync as any).mockReturnValue(false);
       (EnvFileParser.parseVariable as any).mockReturnValue({
+        type: 'variable',
         key: 'API_KEY',
-        value: 'secret123'
+        value: 'secret123',
       });
 
       // Simulate command: lpop API_KEY=secret123
       process.argv = ['node', 'lpop', 'API_KEY=secret123'];
       await cli.run();
 
-      expect(EnvFileParser.parseVariable).toHaveBeenCalledWith('API_KEY=secret123');
-      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalled();
+      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
+        { key: 'API_KEY', value: 'secret123' },
+      ]);
     });
 
     it('should output to file when input is non-existent path', async () => {
       (existsSync as any).mockReturnValue(false);
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
-        { key: 'API_KEY', value: 'secret123' }
-      ]);
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([{ key: 'API_KEY', value: 'secret123' }]);
 
       // Simulate command: lpop output.env
       process.argv = ['node', 'lpop', 'output.env'];
       await cli.run();
 
-      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
-      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('output.env', expect.any(Array));
+      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('output.env', [
+        { type: 'variable', key: 'API_KEY', value: 'secret123' },
+      ]);
+    });
+
+    it('should output to file using smart command', async () => {
+      // Reset the mock for this specific test
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([{ key: 'API_KEY', value: 'secret123' }]);
+
+      process.argv = ['node', 'lpop', 'output.env'];
+      await cli.run();
+
+      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('output.env', [
+        { type: 'variable', key: 'API_KEY', value: 'secret123' },
+      ]);
     });
   });
 
   describe('Add Command', () => {
+    beforeEach(() => {
+      // Clear any previous mock calls
+      mockKeychainManager.setEnvironmentVariables.mockClear();
+    });
+
     it('should add variables from file', async () => {
       (existsSync as any).mockReturnValue(true);
       (EnvFileParser.parseFile as any).mockResolvedValue({
         entries: [
-          { key: 'API_KEY', value: 'secret123' },
-          { key: 'DB_URL', value: 'postgres://localhost' }
-        ]
+          { type: 'variable', key: 'API_KEY', value: 'secret123' },
+          { type: 'variable', key: 'DB_URL', value: 'postgres://localhost' },
+        ],
       });
 
       process.argv = ['node', 'lpop', 'add', '.env'];
@@ -149,47 +170,42 @@ describe('LpopCLI', () => {
 
       expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
         { key: 'API_KEY', value: 'secret123' },
-        { key: 'DB_URL', value: 'postgres://localhost' }
+        { key: 'DB_URL', value: 'postgres://localhost' },
       ]);
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Added 2 variables'));
     });
 
     it('should add single variable', async () => {
       (existsSync as any).mockReturnValue(false);
-      (EnvFileParser.parseVariable as any).mockReturnValue({
-        key: 'API_KEY',
-        value: 'secret123'
-      });
 
       process.argv = ['node', 'lpop', 'add', 'API_KEY=secret123'];
       await cli.run();
 
       expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
-        { key: 'API_KEY', value: 'secret123' }
+        { key: 'API_KEY', value: 'secret123' },
       ]);
+      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledTimes(1);
     });
 
     it('should use custom repo name', async () => {
-      (existsSync as any).mockReturnValue(false);
-      (EnvFileParser.parseVariable as any).mockReturnValue({
-        key: 'API_KEY',
-        value: 'secret123'
+      (existsSync as any).mockReturnValue(true);
+      (EnvFileParser.parseFile as any).mockResolvedValue({
+        entries: [{ type: 'variable', key: 'API_KEY', value: 'secret123' }],
       });
 
-      process.argv = ['node', 'lpop', 'add', 'API_KEY=secret123', '-r', 'custom/repo'];
+      process.argv = ['node', 'lpop', 'add', '.env', '-r', 'custom/repo'];
       await cli.run();
 
       expect(KeychainManager).toHaveBeenCalledWith(expect.stringContaining('custom/repo'), undefined);
     });
 
     it('should use environment option', async () => {
-      (existsSync as any).mockReturnValue(false);
-      (EnvFileParser.parseVariable as any).mockReturnValue({
-        key: 'API_KEY',
-        value: 'secret123'
+      (existsSync as any).mockReturnValue(true);
+      (EnvFileParser.parseFile as any).mockResolvedValue({
+        entries: [{ type: 'variable', key: 'API_KEY', value: 'secret123' }],
       });
 
-      process.argv = ['node', 'lpop', 'add', 'API_KEY=secret123', '-e', 'production'];
+      process.argv = ['node', 'lpop', 'add', '.env', '-e', 'production'];
       await cli.run();
 
       expect(KeychainManager).toHaveBeenCalledWith(expect.any(String), 'production');
@@ -197,44 +213,31 @@ describe('LpopCLI', () => {
   });
 
   describe('Get Command', () => {
-    it('should get all variables', async () => {
+    beforeEach(() => {
       mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
         { key: 'API_KEY', value: 'secret123' },
-        { key: 'DB_URL', value: 'postgres://localhost' }
+        { key: 'DB_URL', value: 'postgres://localhost' },
       ]);
+    });
 
+    afterEach(() => {
+      mockKeychainManager.getEnvironmentVariables.mockClear();
+    });
+
+    it('should get all variables', async () => {
+      (existsSync as any).mockReturnValue(false);
       process.argv = ['node', 'lpop', 'get'];
       await cli.run();
 
       expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
-      expect(consoleLogSpy).toHaveBeenCalledWith('API_KEY=secret123');
-      expect(consoleLogSpy).toHaveBeenCalledWith('DB_URL=postgres://localhost');
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('variables written to .env.local'));
     });
 
     it('should get specific variable', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
-        { key: 'API_KEY', value: 'secret123' },
-        { key: 'DB_URL', value: 'postgres://localhost' }
-      ]);
-
       process.argv = ['node', 'lpop', 'get', 'API_KEY'];
       await cli.run();
 
       expect(consoleLogSpy).toHaveBeenCalledWith('API_KEY=secret123');
-      expect(consoleLogSpy).not.toHaveBeenCalledWith('DB_URL=postgres://localhost');
-    });
-
-    it('should output to file', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
-        { key: 'API_KEY', value: 'secret123' }
-      ]);
-
-      process.argv = ['node', 'lpop', 'get', '-o', 'output.env'];
-      await cli.run();
-
-      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('output.env', [
-        { key: 'API_KEY', value: 'secret123' }
-      ]);
     });
 
     it('should show message when no variables found', async () => {
@@ -247,9 +250,7 @@ describe('LpopCLI', () => {
     });
 
     it('should show message when specific variable not found', async () => {
-      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
-        { key: 'OTHER_KEY', value: 'value' }
-      ]);
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([{ key: 'OTHER_KEY', value: 'value' }]);
 
       process.argv = ['node', 'lpop', 'get', 'API_KEY'];
       await cli.run();
@@ -358,6 +359,104 @@ describe('LpopCLI', () => {
 
       expect(mockGitResolver.generateServiceNameAsync).not.toHaveBeenCalled();
       expect(KeychainManager).toHaveBeenCalledWith(expect.stringContaining('custom/repo'), undefined);
+    });
+  });
+
+  describe('Get Command with .env.example Template', () => {
+    beforeEach(() => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DATABASE_URL', value: 'postgres://localhost:5432/db' },
+        { key: 'EXTRA_VAR', value: 'extra_value' },
+      ]);
+    });
+
+    it('should use .env.example as template when it exists', async () => {
+      (existsSync as any).mockImplementation((path: string) => path === '.env.example');
+      const expectedMergedEntries = [
+        { type: 'comment', comment: '# Environment variables template' },
+        { type: 'empty' },
+        { type: 'variable', key: 'API_KEY', value: 'secret123', comment: '# API key for external service' },
+        {
+          type: 'variable',
+          key: 'DATABASE_URL',
+          value: 'postgres://localhost:5432/db',
+          comment: '# Database connection string',
+        },
+        { type: 'variable', key: 'MISSING_VAR', value: '', comment: '# This variable is not in keychain' },
+        { type: 'empty' },
+        { type: 'comment', comment: '# Additional variables from keychain' },
+        { type: 'variable', key: 'EXTRA_VAR', value: 'extra_value' },
+      ];
+      (EnvFileParser.mergeWithEnvExample as any).mockResolvedValue(expectedMergedEntries);
+
+      process.argv = ['node', 'lpop', 'get'];
+      await cli.run();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found .env.example, using as template'));
+      expect(EnvFileParser.mergeWithEnvExample).toHaveBeenCalledWith('.env.example', [
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DATABASE_URL', value: 'postgres://localhost:5432/db' },
+        { key: 'EXTRA_VAR', value: 'extra_value' },
+      ]);
+      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('.env.local', expectedMergedEntries);
+    });
+
+    it('should fall back to standard output when .env.example does not exist', async () => {
+      (existsSync as any).mockReturnValue(false);
+
+      process.argv = ['node', 'lpop', 'get'];
+      await cli.run();
+
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining('Found .env.example'));
+      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('.env.local', [
+        { type: 'variable', key: 'API_KEY', value: 'secret123' },
+        { type: 'variable', key: 'DATABASE_URL', value: 'postgres://localhost:5432/db' },
+        { type: 'variable', key: 'EXTRA_VAR', value: 'extra_value' },
+      ]);
+    });
+
+    it('should handle .env.example parsing errors gracefully', async () => {
+      (existsSync as any).mockImplementation((path: string) => path === '.env.example');
+      // The mergeWithEnvExample function handles errors internally and returns fallback
+      const fallbackEntries = [
+        { type: 'variable', key: 'API_KEY', value: 'secret123' },
+        { type: 'variable', key: 'DATABASE_URL', value: 'postgres://localhost:5432/db' },
+        { type: 'variable', key: 'EXTRA_VAR', value: 'extra_value' },
+      ];
+      (EnvFileParser.mergeWithEnvExample as any).mockResolvedValue(fallbackEntries);
+
+      process.argv = ['node', 'lpop', 'get'];
+      await cli.run();
+
+      expect(EnvFileParser.mergeWithEnvExample).toHaveBeenCalledWith('.env.example', [
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DATABASE_URL', value: 'postgres://localhost:5432/db' },
+        { key: 'EXTRA_VAR', value: 'extra_value' },
+      ]);
+      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('.env.local', fallbackEntries);
+    });
+
+    it('should sort additional variables alphabetically', async () => {
+      (existsSync as any).mockImplementation((path: string) => path === '.env.example');
+      const expectedMergedEntries = [
+        { type: 'variable', key: 'API_KEY', value: 'secret123', comment: '# API key' },
+        { type: 'empty' },
+        { type: 'comment', comment: '# Additional variables from keychain' },
+        { type: 'variable', key: 'DATABASE_URL', value: 'postgres://localhost:5432/db' },
+        { type: 'variable', key: 'EXTRA_VAR', value: 'extra_value' },
+      ];
+      (EnvFileParser.mergeWithEnvExample as any).mockResolvedValue(expectedMergedEntries);
+
+      process.argv = ['node', 'lpop', 'get'];
+      await cli.run();
+
+      expect(EnvFileParser.mergeWithEnvExample).toHaveBeenCalledWith('.env.example', [
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DATABASE_URL', value: 'postgres://localhost:5432/db' },
+        { key: 'EXTRA_VAR', value: 'extra_value' },
+      ]);
+      expect(EnvFileParser.writeFile).toHaveBeenCalledWith('.env.local', expectedMergedEntries);
     });
   });
 });

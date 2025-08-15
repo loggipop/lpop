@@ -12,6 +12,8 @@
     "prepare-packages": "node scripts/prepare-packages.js",
     "dev": "bun run src/index.ts",
     "clean": "rm -rf dist/ lpop lpop-*",
+    "lint": "biome lint ./src ./tests",
+    "lint:fix": "biome lint --write ./src ./tests",
     "prepack": "bun run build:binaries && bun run prepare-packages",
     "postinstall": "node scripts/postinstall.js",
     "test": "vitest",

@@ -1,10 +1,19 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EnvFileParser } from '../src/env-file-parser';
-import { readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  fromKeyValuePairs,
+  generateContent,
+  parseContent,
+  parseFile,
+  parseVariable,
+  toKeyValuePairs,
+  type VariableEntry,
+  writeFile as writeEnvFile,
+} from '../src/env-file-parser';
 
-vi.mock('fs/promises');
-vi.mock('fs');
+vi.mock('node:fs/promises');
+vi.mock('node:fs');
 
 describe('EnvFileParser', () => {
   beforeEach(() => {
@@ -14,10 +23,10 @@ describe('EnvFileParser', () => {
   describe('parseFile', () => {
     it('should parse env file successfully', async () => {
       const mockContent = 'API_KEY=secret123\nDB_URL=postgres://localhost';
-      (existsSync as any).mockReturnValue(true);
-      (readFile as any).mockResolvedValue(mockContent);
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFile).mockResolvedValue(mockContent);
 
-      const result = await EnvFileParser.parseFile('/path/to/.env');
+      const result = await parseFile('/path/to/.env');
 
       expect(existsSync).toHaveBeenCalledWith('/path/to/.env');
       expect(readFile).toHaveBeenCalledWith('/path/to/.env', 'utf-8');
@@ -31,9 +40,11 @@ describe('EnvFileParser', () => {
     });
 
     it('should throw error when file not found', async () => {
-      (existsSync as any).mockReturnValue(false);
+      vi.mocked(existsSync).mockReturnValue(false);
 
-      await expect(EnvFileParser.parseFile('/missing/.env')).rejects.toThrow('File not found: /missing/.env');
+      await expect(parseFile('/missing/.env')).rejects.toThrow(
+        'File not found: /missing/.env',
+      );
     });
   });
 
@@ -41,7 +52,7 @@ describe('EnvFileParser', () => {
     it('should parse simple variables', () => {
       const content = 'API_KEY=secret123\nDB_URL=postgres://localhost';
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
       expect(result.entries).toHaveLength(2);
       expect(result.entries[0]).toEqual({
@@ -65,17 +76,19 @@ describe('EnvFileParser', () => {
         NO_QUOTES=simple_value
       `;
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
-      expect((result.entries[0] as any).value).toBe('value with spaces');
-      expect((result.entries[1] as any).value).toBe('another value');
-      expect((result.entries[2] as any).value).toBe('simple_value');
+      expect((result.entries[0] as VariableEntry).value).toBe(
+        'value with spaces',
+      );
+      expect((result.entries[1] as VariableEntry).value).toBe('another value');
+      expect((result.entries[2] as VariableEntry).value).toBe('simple_value');
     });
 
     it('should handle inline comments', () => {
       const content = 'API_KEY=secret123 # Production API key';
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
       expect(result.entries[0]).toEqual({
         type: 'variable',
@@ -90,9 +103,12 @@ describe('EnvFileParser', () => {
 # Another comment
 API_KEY=secret123`;
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
-      expect(result.comments).toEqual(['# This is a comment', '# Another comment']);
+      expect(result.comments).toEqual([
+        '# This is a comment',
+        '# Another comment',
+      ]);
       expect(result.entries).toHaveLength(1);
     });
 
@@ -101,7 +117,7 @@ API_KEY=secret123`;
 
 DB_URL=postgres://localhost`;
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
       expect(result.entries).toHaveLength(2);
     });
@@ -109,7 +125,7 @@ DB_URL=postgres://localhost`;
     it('should preserve original content', () => {
       const content = 'API_KEY=secret123';
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
       expect(result.originalContent).toBe(content);
     });
@@ -117,17 +133,20 @@ DB_URL=postgres://localhost`;
     it('should handle empty values', () => {
       const content = 'EMPTY_VAR=';
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
       expect(result.entries).toHaveLength(1);
-      expect((result.entries[0] as any).key).toBe('EMPTY_VAR');
-      expect((result.entries[0] as any).value).toBe('');
+      expect(result.entries[0].type).toEqual('variable');
+      if (result.entries[0].type === 'variable') {
+        expect(result.entries[0].key).toBe('EMPTY_VAR');
+        expect(result.entries[0].value).toBe('');
+      }
     });
 
     it('should include ignoredCount property', () => {
       const content = 'EMPTY_VAR=\nFILLED_VAR=value';
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
       expect(result.ignoredCount).toBe(1);
     });
@@ -135,9 +154,12 @@ DB_URL=postgres://localhost`;
     it('should handle values with equals signs', () => {
       const content = 'CONNECTION=user=admin;pass=secret';
 
-      const result = EnvFileParser.parseContent(content);
+      const result = parseContent(content);
 
-      expect((result.entries[0] as any).value).toBe('user=admin;pass=secret');
+      expect(result.entries[0].type).toEqual('variable');
+      if (result.entries[0].type === 'variable') {
+        expect(result.entries[0].value).toBe('user=admin;pass=secret');
+      }
     });
   });
 
@@ -145,28 +167,34 @@ DB_URL=postgres://localhost`;
     it('should write env file with entries', async () => {
       const entries = [
         { type: 'variable' as const, key: 'API_KEY', value: 'secret123' },
-        { type: 'variable' as const, key: 'DB_URL', value: 'postgres://localhost' },
+        {
+          type: 'variable' as const,
+          key: 'DB_URL',
+          value: 'postgres://localhost',
+        },
       ];
 
-      await EnvFileParser.writeFile('/path/to/.env', entries);
+      await writeEnvFile('/path/to/.env', entries);
 
       expect(writeFile).toHaveBeenCalledWith(
         '/path/to/.env',
         'API_KEY=secret123\nDB_URL=postgres://localhost\n',
-        'utf-8'
+        'utf-8',
       );
     });
 
     it('should write env file with comments', async () => {
-      const entries = [{ type: 'variable' as const, key: 'API_KEY', value: 'secret123' }];
+      const entries = [
+        { type: 'variable' as const, key: 'API_KEY', value: 'secret123' },
+      ];
       const comments = ['# Production environment'];
 
-      await EnvFileParser.writeFile('/path/to/.env', entries, comments);
+      await writeEnvFile('/path/to/.env', entries, comments);
 
       expect(writeFile).toHaveBeenCalledWith(
         '/path/to/.env',
         '# Production environment\n\nAPI_KEY=secret123\n',
-        'utf-8'
+        'utf-8',
       );
     });
   });
@@ -175,32 +203,45 @@ DB_URL=postgres://localhost`;
     it('should generate content with entries', () => {
       const entries = [
         { type: 'variable' as const, key: 'API_KEY', value: 'secret123' },
-        { type: 'variable' as const, key: 'DB_URL', value: 'postgres://localhost' },
+        {
+          type: 'variable' as const,
+          key: 'DB_URL',
+          value: 'postgres://localhost',
+        },
       ];
 
-      const content = EnvFileParser.generateContent(entries);
+      const content = generateContent(entries);
 
       expect(content).toBe('API_KEY=secret123\nDB_URL=postgres://localhost\n');
     });
 
     it('should add quotes to values with spaces', () => {
-      const entries = [{ type: 'variable' as const, key: 'MESSAGE', value: 'Hello World' }];
+      const entries = [
+        { type: 'variable' as const, key: 'MESSAGE', value: 'Hello World' },
+      ];
 
-      const content = EnvFileParser.generateContent(entries);
+      const content = generateContent(entries);
 
       expect(content).toBe('MESSAGE="Hello World"\n');
     });
 
     it('should include inline comments', () => {
-      const entries = [{ type: 'variable' as const, key: 'API_KEY', value: 'secret123', comment: '# Production key' }];
+      const entries = [
+        {
+          type: 'variable' as const,
+          key: 'API_KEY',
+          value: 'secret123',
+          comment: '# Production key',
+        },
+      ];
 
-      const content = EnvFileParser.generateContent(entries);
+      const content = generateContent(entries);
 
       expect(content).toBe('API_KEY=secret123 # Production key\n');
     });
 
     it('should handle empty entries array', () => {
-      const content = EnvFileParser.generateContent([]);
+      const content = generateContent([]);
 
       expect(content).toBe('');
     });
@@ -208,7 +249,7 @@ DB_URL=postgres://localhost`;
     it('should quote empty values', () => {
       const entries = [{ type: 'variable' as const, key: 'EMPTY', value: '' }];
 
-      const content = EnvFileParser.generateContent(entries);
+      const content = generateContent(entries);
 
       expect(content).toBe('EMPTY=\n');
     });
@@ -220,7 +261,7 @@ DB_URL=postgres://localhost`;
         { type: 'variable' as const, key: 'QUOTE', value: "it's" },
       ];
 
-      const content = EnvFileParser.generateContent(entries);
+      const content = generateContent(entries);
 
       expect(content).toContain('PATH="/usr/bin:$PATH"');
       expect(content).toContain('HASH="value#comment"');
@@ -233,15 +274,18 @@ DB_URL=postgres://localhost`;
         { type: 'variable' as const, key: 'API_KEY', value: 'secret123' },
       ];
 
-      const content = EnvFileParser.generateContent(entries);
+      const content = generateContent(entries);
 
       expect(content).toBe('# This is a comment\nAPI_KEY=secret123\n');
     });
 
     it('should handle empty entries', () => {
-      const entries = [{ type: 'empty' as const }, { type: 'variable' as const, key: 'API_KEY', value: 'secret123' }];
+      const entries = [
+        { type: 'empty' as const },
+        { type: 'variable' as const, key: 'API_KEY', value: 'secret123' },
+      ];
 
-      const content = EnvFileParser.generateContent(entries);
+      const content = generateContent(entries);
 
       expect(content).toBe('\nAPI_KEY=secret123\n');
     });
@@ -254,7 +298,7 @@ DB_URL=postgres://localhost`;
         DB_URL: 'postgres://localhost',
       };
 
-      const entries = EnvFileParser.fromKeyValuePairs(pairs);
+      const entries = fromKeyValuePairs(pairs);
 
       expect(entries).toEqual([
         { type: 'variable', key: 'API_KEY', value: 'secret123' },
@@ -263,7 +307,7 @@ DB_URL=postgres://localhost`;
     });
 
     it('should handle empty object', () => {
-      const entries = EnvFileParser.fromKeyValuePairs({});
+      const entries = fromKeyValuePairs({});
 
       expect(entries).toEqual([]);
     });
@@ -273,10 +317,14 @@ DB_URL=postgres://localhost`;
     it('should convert entries to object', () => {
       const entries = [
         { type: 'variable' as const, key: 'API_KEY', value: 'secret123' },
-        { type: 'variable' as const, key: 'DB_URL', value: 'postgres://localhost' },
+        {
+          type: 'variable' as const,
+          key: 'DB_URL',
+          value: 'postgres://localhost',
+        },
       ];
 
-      const pairs = EnvFileParser.toKeyValuePairs(entries);
+      const pairs = toKeyValuePairs(entries);
 
       expect(pairs).toEqual({
         API_KEY: 'secret123',
@@ -285,7 +333,7 @@ DB_URL=postgres://localhost`;
     });
 
     it('should handle empty entries', () => {
-      const pairs = EnvFileParser.toKeyValuePairs([]);
+      const pairs = toKeyValuePairs([]);
 
       expect(pairs).toEqual({});
     });
@@ -297,7 +345,7 @@ DB_URL=postgres://localhost`;
         { type: 'empty' as const },
       ];
 
-      const pairs = EnvFileParser.toKeyValuePairs(entries);
+      const pairs = toKeyValuePairs(entries);
 
       expect(pairs).toEqual({
         API_KEY: 'secret123',
@@ -307,7 +355,7 @@ DB_URL=postgres://localhost`;
 
   describe('parseVariable', () => {
     it('should parse simple variable', () => {
-      const result = EnvFileParser.parseVariable('API_KEY=secret123');
+      const result = parseVariable('API_KEY=secret123');
 
       expect(result).toEqual({
         type: 'variable',
@@ -317,7 +365,7 @@ DB_URL=postgres://localhost`;
     });
 
     it('should handle quoted values', () => {
-      const result = EnvFileParser.parseVariable('MESSAGE="Hello World"');
+      const result = parseVariable('MESSAGE="Hello World"');
 
       expect(result).toEqual({
         type: 'variable',
@@ -327,7 +375,7 @@ DB_URL=postgres://localhost`;
     });
 
     it('should handle values with equals signs', () => {
-      const result = EnvFileParser.parseVariable('CONNECTION=user=admin;pass=secret');
+      const result = parseVariable('CONNECTION=user=admin;pass=secret');
 
       expect(result).toEqual({
         type: 'variable',
@@ -337,7 +385,7 @@ DB_URL=postgres://localhost`;
     });
 
     it('should trim whitespace', () => {
-      const result = EnvFileParser.parseVariable('  KEY  =  value  ');
+      const result = parseVariable('  KEY  =  value  ');
 
       expect(result).toEqual({
         type: 'variable',
@@ -347,13 +395,13 @@ DB_URL=postgres://localhost`;
     });
 
     it('should throw error for invalid format', () => {
-      expect(() => EnvFileParser.parseVariable('invalid')).toThrow(
-        'Invalid variable format: invalid. Expected KEY=value'
+      expect(() => parseVariable('invalid')).toThrow(
+        'Invalid variable format: invalid. Expected KEY=value',
       );
     });
 
     it('should handle empty values', () => {
-      const result = EnvFileParser.parseVariable('EMPTY=');
+      const result = parseVariable('EMPTY=');
 
       expect(result).toEqual({
         type: 'variable',

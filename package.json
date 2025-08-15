@@ -16,7 +16,8 @@
     "lint:fix": "biome lint --write ./src ./tests",
     "prepack": "bun run build:binaries && bun run prepare-packages",
     "postinstall": "node scripts/postinstall.js",
-    "test": "vitest",
+    "test": "vitest --run",
+    "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"
   },

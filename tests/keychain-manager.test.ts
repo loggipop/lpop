@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 vi.mock('@napi-rs/keyring', () => ({
   Entry: vi.fn(),
-  findCredentials: vi.fn()
+  findCredentials: vi.fn(),
 }));
+
 import { Entry, findCredentials } from '@napi-rs/keyring';
 import { KeychainManager } from '../src/keychain-manager';
 
@@ -21,7 +22,7 @@ describe('KeychainManager', () => {
     mockEntry = {
       setPassword: vi.fn(),
       getPassword: vi.fn(),
-      deletePassword: vi.fn()
+      deletePassword: vi.fn(),
     };
 
     (Entry as unknown as Mock).mockImplementation(() => mockEntry);
@@ -44,7 +45,10 @@ describe('KeychainManager', () => {
     it('should set password with environment suffix', async () => {
       await manager.setPassword('API_KEY', 'secret123');
 
-      expect(Entry).toHaveBeenCalledWith('test-service', 'API_KEY?env=development');
+      expect(Entry).toHaveBeenCalledWith(
+        'test-service',
+        'API_KEY?env=development',
+      );
       expect(mockEntry.setPassword).toHaveBeenCalledWith('secret123');
     });
 
@@ -63,7 +67,10 @@ describe('KeychainManager', () => {
 
       const result = await manager.getPassword('API_KEY');
 
-      expect(Entry).toHaveBeenCalledWith('test-service', 'API_KEY?env=development');
+      expect(Entry).toHaveBeenCalledWith(
+        'test-service',
+        'API_KEY?env=development',
+      );
       expect(mockEntry.getPassword).toHaveBeenCalled();
       expect(result).toBe('secret123');
     });
@@ -85,7 +92,10 @@ describe('KeychainManager', () => {
 
       const result = await manager.deletePassword('API_KEY');
 
-      expect(Entry).toHaveBeenCalledWith('test-service', 'API_KEY?env=development');
+      expect(Entry).toHaveBeenCalledWith(
+        'test-service',
+        'API_KEY?env=development',
+      );
       expect(mockEntry.deletePassword).toHaveBeenCalled();
       expect(result).toBe(true);
     });
@@ -107,7 +117,7 @@ describe('KeychainManager', () => {
         { account: 'API_KEY', password: 'generic-value' },
         { account: 'API_KEY?env=development', password: 'dev-value' },
         { account: 'API_KEY?env=production', password: 'prod-value' },
-        { account: 'DB_URL?env=development', password: 'dev-db' }
+        { account: 'DB_URL?env=development', password: 'dev-db' },
       ]);
 
       const result = await manager.findServiceCredentials();
@@ -115,20 +125,20 @@ describe('KeychainManager', () => {
       expect(findCredentials).toHaveBeenCalledWith('test-service');
       expect(result).toEqual([
         { account: 'API_KEY', password: 'dev-value' },
-        { account: 'DB_URL', password: 'dev-db' }
+        { account: 'DB_URL', password: 'dev-db' },
       ]);
     });
 
     it('should use generic credentials when no environment-specific ones exist', async () => {
       (findCredentials as Mock).mockReturnValue([
         { account: 'API_KEY', password: 'generic-value' },
-        { account: 'DB_URL?env=production', password: 'prod-db' }
+        { account: 'DB_URL?env=production', password: 'prod-db' },
       ]);
 
       const result = await manager.findServiceCredentials();
 
       expect(result).toEqual([
-        { account: 'API_KEY', password: 'generic-value' }
+        { account: 'API_KEY', password: 'generic-value' },
       ]);
     });
 
@@ -144,14 +154,14 @@ describe('KeychainManager', () => {
       const noEnvManager = new KeychainManager('test-service');
       (findCredentials as Mock).mockReturnValue([
         { account: 'API_KEY', password: 'value1' },
-        { account: 'DB_URL', password: 'value2' }
+        { account: 'DB_URL', password: 'value2' },
       ]);
 
       const result = await noEnvManager.findServiceCredentials();
 
       expect(result).toEqual([
         { account: 'API_KEY', password: 'value1' },
-        { account: 'DB_URL', password: 'value2' }
+        { account: 'DB_URL', password: 'value2' },
       ]);
     });
   });
@@ -160,14 +170,16 @@ describe('KeychainManager', () => {
     it('should set multiple environment variables', async () => {
       const variables = [
         { key: 'API_KEY', value: 'secret1' },
-        { key: 'DB_URL', value: 'postgres://localhost' }
+        { key: 'DB_URL', value: 'postgres://localhost' },
       ];
 
       await manager.setEnvironmentVariables(variables);
 
       expect(mockEntry.setPassword).toHaveBeenCalledTimes(2);
       expect(mockEntry.setPassword).toHaveBeenCalledWith('secret1');
-      expect(mockEntry.setPassword).toHaveBeenCalledWith('postgres://localhost');
+      expect(mockEntry.setPassword).toHaveBeenCalledWith(
+        'postgres://localhost',
+      );
     });
 
     it('should handle empty array', async () => {
@@ -181,14 +193,14 @@ describe('KeychainManager', () => {
     it('should return all environment variables', async () => {
       (findCredentials as Mock).mockReturnValue([
         { account: 'API_KEY?env=development', password: 'secret1' },
-        { account: 'DB_URL', password: 'postgres://localhost' }
+        { account: 'DB_URL', password: 'postgres://localhost' },
       ]);
 
       const result = await manager.getEnvironmentVariables();
 
       expect(result).toEqual([
         { key: 'API_KEY', value: 'secret1' },
-        { key: 'DB_URL', value: 'postgres://localhost' }
+        { key: 'DB_URL', value: 'postgres://localhost' },
       ]);
     });
 
@@ -224,7 +236,7 @@ describe('KeychainManager', () => {
     it('should clear all environment variables', async () => {
       (findCredentials as Mock).mockReturnValue([
         { account: 'API_KEY?env=development', password: 'secret1' },
-        { account: 'DB_URL', password: 'postgres://localhost' }
+        { account: 'DB_URL', password: 'postgres://localhost' },
       ]);
       mockEntry.deletePassword.mockReturnValue(true);
 

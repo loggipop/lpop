@@ -13,10 +13,10 @@ export default defineConfig({
         '**/*.config.ts',
         '**/*.config.js',
         'scripts/**',
-        'tests/**'
-      ]
+        'tests/**',
+      ],
     },
     testTimeout: 10000,
-    setupFiles: ['./tests/setup.ts']
-  }
+    setupFiles: ['./tests/setup.ts'],
+  },
 });

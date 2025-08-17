@@ -45,13 +45,13 @@ describe('GitPathResolver', () => {
 
   describe('constructor', () => {
     it('should create instance with custom working directory', () => {
-      const _customResolver = new GitPathResolver('/custom/path');
+      new GitPathResolver('/custom/path');
       expect(mockedSimpleGit).toHaveBeenCalledWith('/custom/path');
     });
 
     it('should use current working directory by default', () => {
       const originalCwd = process.cwd();
-      const _defaultResolver = new GitPathResolver();
+      new GitPathResolver();
       expect(mockedSimpleGit).toHaveBeenCalledWith(originalCwd);
     });
   });

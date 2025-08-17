@@ -23,21 +23,26 @@ export interface EmptyEntry {
 
 export interface ParsedEnvFile {
   entries: EnvEntry[];
-  comments: string[];
-  originalContent: string;
   ignoredCount: number;
-  structure: FileStructure;
 }
 
-export interface FileStructure {
-  lines: StructureLine[];
+export function asComment(comment: string): CommentEntry {
+  return { type: 'comment', comment };
 }
 
-export interface StructureLine {
-  type: 'comment' | 'variable' | 'empty';
-  content?: string;
-  entry?: EnvEntry;
-  originalIndex: number;
+export function asEmpty(): EmptyEntry {
+  return { type: 'empty' };
+}
+
+export function asVariable(
+  key: string,
+  value: string,
+  comment?: string,
+): VariableEntry {
+  if (!comment) {
+    return { type: 'variable', key, value };
+  }
+  return { type: 'variable', key, value, comment };
 }
 
 export async function parseFile(filePath: string): Promise<ParsedEnvFile> {
@@ -49,131 +54,122 @@ export async function parseFile(filePath: string): Promise<ParsedEnvFile> {
   return parseContent(content);
 }
 
+/**
+ * Extracts value and comment from a variable assignment value part.
+ * A comment starts with # only when preceded by whitespace and not inside quotes.
+ * @param valuePart - The part after the equals sign in a variable assignment
+ * @returns Object containing the extracted value and comment
+ */
+function extractValueAndComment(valuePart: string): {
+  value: string;
+  comment: string;
+} {
+  let value = valuePart;
+  let comment = '';
+
+  // First, check if the value starts with a hash (empty value with comment)
+  if (value.startsWith('#')) {
+    comment = value;
+    value = '';
+  } else {
+    // Find the first # that's not inside quotes
+    let inQuotes = false;
+    let quoteChar = '';
+    let commentStart = -1;
+
+    for (let i = 0; i < value.length; i++) {
+      const char = value[i];
+
+      if (char === '"' || char === "'") {
+        if (!inQuotes) {
+          inQuotes = true;
+          quoteChar = char;
+        } else if (char === quoteChar) {
+          // Check for escaped quote
+          if (i === 0 || value[i - 1] !== '\\') {
+            inQuotes = false;
+            quoteChar = '';
+          }
+        }
+      } else if (char === '#' && !inQuotes) {
+        // Found a # that's not inside quotes
+        // Check if it's preceded by whitespace
+        if (i === 0 || /\s/.test(value[i - 1])) {
+          commentStart = i;
+          break;
+        }
+      }
+    }
+
+    if (commentStart !== -1) {
+      comment = value.substring(commentStart);
+      value = value.substring(0, commentStart).trim();
+    }
+  }
+
+  return { value, comment };
+}
+
 export function parseContent(content: string): ParsedEnvFile {
-  const lines = content.split('\n');
+  // ensure unix line endings to support better matching of values and comments.
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
   const entries: EnvEntry[] = [];
-  const comments: string[] = [];
-  const structure: StructureLine[] = [];
   let ignoredCount = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+    const variableMatch = line.match(/^([^=]+?)=(.*)$/);
 
-    // Handle empty lines
     if (!trimmed) {
-      structure.push({
-        type: 'empty',
-        originalIndex: i,
-      });
-      continue;
-    }
-
-    // Handle full-line comments
-    if (trimmed.startsWith('#')) {
-      comments.push(trimmed);
-      structure.push({
-        type: 'comment',
-        content: trimmed,
-        originalIndex: i,
-      });
-      continue;
-    }
-
-    // Handle variable assignments
-    const match = line.match(/^([^=]+?)=(.*)$/);
-    if (match) {
-      const [, keyPart, valuePart] = match;
+      // Skip empty lines
+      entries.push(asEmpty());
+    } else if (trimmed.startsWith('#')) {
+      // Handle full-line comments
+      entries.push(asComment(trimmed));
+    } else if (variableMatch) {
+      // Handle variable assignments
+      const [, keyPart, valuePart] = variableMatch;
       const key = keyPart.trim();
-
-      // Extract inline comment if present
-      const valueMatch = valuePart.match(/^(.*?)(\s*#.*)?$/);
-      const value = valueMatch ? valueMatch[1].trim() : valuePart.trim();
-      const comment = valueMatch?.[2] ? valueMatch[2].trim() : undefined;
-
-      // Remove quotes if present
-      const cleanValue = removeQuotes(value);
-
-      // Create the entry
-      const entry: VariableEntry = {
-        type: 'variable',
+      const value = valuePart.trim();
+      const { value: extractedValue, comment } = extractValueAndComment(value);
+      const variableEntry = asVariable(
         key,
-        value: cleanValue,
+        removeQuotes(extractedValue),
         comment,
-      };
-
-      // Always add the entry, but count empty values as ignored
-      entries.push(entry);
-
-      // Add to structure
-      structure.push({
-        type: 'variable',
-        entry,
-        originalIndex: i,
-      });
-
-      // Count entries with empty values for reporting
-      if (!cleanValue) {
+      );
+      entries.push(variableEntry);
+      if (!variableEntry.value) {
         ignoredCount++;
       }
     }
   }
 
-  return {
-    entries,
-    comments,
-    originalContent: content,
-    ignoredCount,
-    structure: { lines: structure },
-  };
+  return { entries, ignoredCount };
 }
 
 export async function writeFile(
   filePath: string,
   entries: EnvEntry[],
-  comments: string[] = [],
 ): Promise<void> {
-  const content = generateContent(entries, comments);
+  const content = generateContent(entries);
   await fsWriteFile(filePath, content, 'utf-8');
 }
 
-export function generateContent(
-  entries: EnvEntry[],
-  comments: string[] = [],
-): string {
+export function generateContent(entries: EnvEntry[]): string {
   const lines: string[] = [];
-
-  // Add standalone comments at the top
-  for (const comment of comments) {
-    lines.push(comment);
-  }
-
-  if (comments.length > 0 && entries.length > 0) {
-    lines.push(''); // Empty line after comments
-  }
-
-  // Add environment variables
   for (const entry of entries) {
-    switch (entry.type) {
-      case 'comment':
-        lines.push(entry.comment);
-        break;
-      case 'empty':
-        lines.push(''); // Empty line
-        break;
-      case 'variable': {
-        const quotedValue = needsQuotes(entry.value)
-          ? `"${entry.value}"`
-          : entry.value;
-        const line = entry.comment
-          ? `${entry.key}=${quotedValue} ${entry.comment}`
-          : `${entry.key}=${quotedValue}`;
-        lines.push(line);
-        break;
-      }
+    if (entry.type === 'comment') {
+      lines.push(entry.comment);
+    } else if (entry.type === 'empty') {
+      lines.push('');
+    } else if (entry.type === 'variable') {
+      let value = needsQuotes(entry.value) ? `"${entry.value}"` : entry.value;
+      value = value || '';
+      const comment = entry.comment ? ` ${entry.comment}` : '';
+      lines.push(`${entry.key}=${value}${comment}`);
     }
   }
-
   return lines.join('\n') + (lines.length > 0 ? '\n' : '');
 }
 
@@ -188,6 +184,9 @@ function removeQuotes(value: string): string {
 }
 
 function needsQuotes(value: string): boolean {
+  if (value === '') {
+    return false;
+  }
   // Quote if contains spaces, special characters, or is empty
   return /[\s#"'$`\\]/.test(value);
 }
@@ -223,11 +222,7 @@ export function parseVariable(variableString: string): VariableEntry {
   }
 
   const [, key, value] = match;
-  return {
-    type: 'variable',
-    key: key.trim(),
-    value: removeQuotes(value.trim()),
-  };
+  return asVariable(key.trim(), removeQuotes(value.trim()));
 }
 
 /**
@@ -248,39 +243,24 @@ export async function mergeWithEnvExample(
     const mergedEntries: EnvEntry[] = [];
     const usedKeys = new Set<string>();
 
-    // Process template structure to maintain exact layout
-    for (const structureLine of template.structure.lines) {
-      if (structureLine.type === 'comment') {
-        // Add standalone comments
-        mergedEntries.push({
-          type: 'comment',
-          comment: structureLine.content ?? '',
-        });
-      } else if (structureLine.type === 'empty') {
-        // Add empty lines
-        mergedEntries.push({
-          type: 'empty',
-        });
-      } else if (
-        structureLine.type === 'variable' &&
-        structureLine.entry &&
-        structureLine.entry.type === 'variable'
-      ) {
-        const templateEntry = structureLine.entry as VariableEntry;
-        const keychainValue = keychainMap.get(templateEntry.key);
+    // Process template entries to maintain exact layout
+    for (const entry of template.entries) {
+      if (entry.type === 'comment') {
+        mergedEntries.push(entry);
+      } else if (entry.type === 'empty') {
+        mergedEntries.push(entry);
+      } else if (entry.type === 'variable') {
+        const keychainValue = keychainMap.get(entry.key);
 
         if (keychainValue !== undefined) {
           // Variable exists in keychain, use the actual value
-          mergedEntries.push({
-            type: 'variable',
-            key: templateEntry.key,
-            value: keychainValue,
-            comment: templateEntry.comment,
-          });
-          usedKeys.add(templateEntry.key);
+          mergedEntries.push(
+            asVariable(entry.key, keychainValue, entry.comment),
+          );
+          usedKeys.add(entry.key);
         } else {
           // Variable not in keychain, keep template entry as-is (empty value)
-          mergedEntries.push(templateEntry);
+          mergedEntries.push(entry);
         }
       }
     }
@@ -293,24 +273,14 @@ export async function mergeWithEnvExample(
     if (remainingVariables.length > 0) {
       // Add a separator entry with empty key and comment to create a visual separator
       if (mergedEntries.length > 0) {
-        mergedEntries.push({
-          type: 'empty',
-        });
-        mergedEntries.push({
-          type: 'comment',
-          comment: '# Additional variables from keychain',
-        });
+        mergedEntries.push(asEmpty());
+        mergedEntries.push(asComment('# Additional variables from keychain'));
       }
 
       // Convert KeychainEntry to VariableEntry
       const remainingVariableEntries: VariableEntry[] = remainingVariables.map(
-        (v) => ({
-          type: 'variable',
-          key: v.key,
-          value: v.value,
-        }),
+        (v) => asVariable(v.key, v.value),
       );
-
       mergedEntries.push(...remainingVariableEntries);
     }
 
@@ -324,10 +294,6 @@ export async function mergeWithEnvExample(
     );
     console.log(chalk.yellow('Falling back to standard output format'));
     // Convert KeychainEntry to VariableEntry for fallback
-    return keychainVariables.map((v) => ({
-      type: 'variable',
-      key: v.key,
-      value: v.value,
-    }));
+    return keychainVariables.map((v) => asVariable(v.key, v.value));
   }
 }

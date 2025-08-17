@@ -1,58 +1,64 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mock,
-  vi,
-} from 'vitest';
-
-vi.mock('simple-git');
-vi.mock('git-url-parse');
-
+import type { GitUrl } from 'git-url-parse';
 import GitUrlParse from 'git-url-parse';
 import { simpleGit } from 'simple-git';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   GitPathResolver,
   getServicePrefix,
   isDevelopment,
 } from '../src/git-path-resolver';
 
+// Mock simple-git with factory function
+vi.mock('simple-git', () => {
+  const mockGit = {
+    status: vi.fn(),
+    getRemotes: vi.fn(),
+  };
+
+  return {
+    simpleGit: vi.fn(() => mockGit),
+  };
+});
+
+// Mock git-url-parse
+vi.mock('git-url-parse', () => ({
+  default: vi.fn(),
+}));
+
 describe('GitPathResolver', () => {
   let resolver: GitPathResolver;
-  let mockGit: {
-    status: Mock;
-    getRemotes: Mock;
+
+  // Get properly typed mocked modules
+  const mockedSimpleGit = vi.mocked(simpleGit);
+  const mockedGitUrlParse = vi.mocked(GitUrlParse);
+
+  // Helper to get the mock git instance
+  const getMockGitInstance = () => {
+    const results = mockedSimpleGit.mock.results;
+    return results[results.length - 1]?.value;
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockGit = {
-      status: vi.fn(),
-      getRemotes: vi.fn(),
-    };
-
-    (simpleGit as unknown as Mock).mockReturnValue(mockGit);
     resolver = new GitPathResolver('/test/dir');
   });
 
   describe('constructor', () => {
     it('should create instance with custom working directory', () => {
       new GitPathResolver('/custom/path');
-      expect(simpleGit).toHaveBeenCalledWith('/custom/path');
+      expect(mockedSimpleGit).toHaveBeenCalledWith('/custom/path');
     });
 
     it('should use current working directory by default', () => {
       const originalCwd = process.cwd();
       new GitPathResolver();
-      expect(simpleGit).toHaveBeenCalledWith(originalCwd);
+      expect(mockedSimpleGit).toHaveBeenCalledWith(originalCwd);
     });
   });
 
   describe('isGitRepository', () => {
     it('should return true when in a git repository', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.status.mockResolvedValue({});
 
       const result = await resolver.isGitRepository();
@@ -62,6 +68,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should return false when not in a git repository', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.status.mockRejectedValue(new Error('Not a git repo'));
 
       const result = await resolver.isGitRepository();
@@ -72,6 +79,7 @@ describe('GitPathResolver', () => {
 
   describe('getRemoteUrl', () => {
     it('should return fetch URL for origin remote', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([
         {
           name: 'origin',
@@ -89,6 +97,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should return URL for custom remote name', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([
         {
           name: 'upstream',
@@ -105,6 +114,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should return null when remote not found', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([]);
 
       const result = await resolver.getRemoteUrl();
@@ -113,6 +123,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should return null on error', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockRejectedValue(new Error('Git error'));
 
       const result = await resolver.getRemoteUrl();
@@ -123,6 +134,7 @@ describe('GitPathResolver', () => {
 
   describe('getGitInfo', () => {
     it('should parse git URL and return git info', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([
         {
           name: 'origin',
@@ -132,15 +144,29 @@ describe('GitPathResolver', () => {
         },
       ]);
 
-      (GitUrlParse as unknown as Mock).mockReturnValue({
+      mockedGitUrlParse.mockReturnValue({
         owner: 'user',
         name: 'repo',
         full_name: 'user/repo',
-      });
+        source: 'github.com',
+        ref: '',
+        filepath: '',
+        filepathtype: '',
+        organization: '',
+        protocol: 'https',
+        resource: 'github.com',
+        port: null,
+        pathname: '/user/repo',
+        search: '',
+        hash: '',
+        href: 'https://github.com/user/repo.git',
+        token: '',
+        toString: vi.fn(() => 'https://github.com/user/repo.git'),
+      } as unknown as GitUrl);
 
       const result = await resolver.getGitInfo();
 
-      expect(GitUrlParse).toHaveBeenCalledWith(
+      expect(mockedGitUrlParse).toHaveBeenCalledWith(
         'https://github.com/user/repo.git',
       );
       expect(result).toEqual({
@@ -151,6 +177,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should return null when no remote URL', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([]);
 
       const result = await resolver.getGitInfo();
@@ -159,6 +186,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should return null when URL parsing fails', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([
         {
           name: 'origin',
@@ -168,7 +196,7 @@ describe('GitPathResolver', () => {
         },
       ]);
 
-      (GitUrlParse as unknown as Mock).mockImplementation(() => {
+      mockedGitUrlParse.mockImplementation(() => {
         throw new Error('Parse error');
       });
 
@@ -180,6 +208,7 @@ describe('GitPathResolver', () => {
 
   describe('generateServiceNameAsync', () => {
     it('should generate service name from git info', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([
         {
           name: 'origin',
@@ -189,11 +218,25 @@ describe('GitPathResolver', () => {
         },
       ]);
 
-      (GitUrlParse as unknown as Mock).mockReturnValue({
+      mockedGitUrlParse.mockReturnValue({
         owner: 'user',
         name: 'repo',
         full_name: 'user/repo',
-      });
+        source: 'github.com',
+        ref: '',
+        filepath: '',
+        filepathtype: '',
+        organization: '',
+        protocol: 'https',
+        resource: 'github.com',
+        port: null,
+        pathname: '/user/repo',
+        search: '',
+        hash: '',
+        href: 'https://github.com/user/repo.git',
+        token: '',
+        toString: vi.fn(() => 'https://github.com/user/repo.git'),
+      } as unknown as GitUrl);
 
       const originalIsDev = isDevelopment();
       const expectedPrefix = originalIsDev ? 'lpop-dev://' : 'lpop://';
@@ -204,6 +247,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should use fallback when no git info available', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([]);
 
       const originalIsDev = isDevelopment();
@@ -215,6 +259,7 @@ describe('GitPathResolver', () => {
     });
 
     it('should handle empty directory name', async () => {
+      const mockGit = getMockGitInstance();
       mockGit.getRemotes.mockResolvedValue([]);
       const emptyDirResolver = new GitPathResolver('');
 

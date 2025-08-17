@@ -4,8 +4,11 @@ import { Command } from 'commander';
 import packageJson from '../package.json' with { type: 'json' };
 import {
   type EnvEntry,
-  EnvFileParser,
+  mergeWithEnvExample,
+  parseFile,
+  parseVariable,
   type VariableEntry,
+  writeFile,
 } from './env-file-parser.js';
 import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { KeychainManager } from './keychain-manager.js';
@@ -169,7 +172,7 @@ export class LpopCLI {
 
       if (existsSync(input)) {
         // Parse file
-        const parsed = await EnvFileParser.parseFile(input);
+        const parsed = await parseFile(input);
         entries = parsed.entries;
         console.log(
           chalk.green(`Parsed ${entries.length} variables from ${input}`),
@@ -185,7 +188,7 @@ export class LpopCLI {
         }
       } else {
         // Parse single variable
-        entries = [EnvFileParser.parseVariable(input)];
+        entries = [parseVariable(input)];
       }
 
       // Convert EnvEntry to KeychainEntry for the keychain manager
@@ -243,7 +246,7 @@ export class LpopCLI {
               key: variable.key,
               value: variable.value,
             };
-            await EnvFileParser.writeFile(options.output, [variableEntry]);
+            await writeFile(options.output, [variableEntry]);
             console.log(
               chalk.green(`✓ Variable ${key} written to ${options.output}`),
             );
@@ -260,11 +263,11 @@ export class LpopCLI {
         const envExamplePath = '.env.example';
         if (existsSync(envExamplePath)) {
           console.log(chalk.blue(`Found .env.example, using as template...`));
-          const mergedEntries = await EnvFileParser.mergeWithEnvExample(
+          const mergedEntries = await mergeWithEnvExample(
             envExamplePath,
             variables,
           );
-          await EnvFileParser.writeFile(outputFile, mergedEntries);
+          await writeFile(outputFile, mergedEntries);
           console.log(
             chalk.green(
               `✓ ${mergedEntries.length} variables written to ${outputFile} using .env.example template`,
@@ -277,7 +280,7 @@ export class LpopCLI {
             key: v.key,
             value: v.value,
           }));
-          await EnvFileParser.writeFile(outputFile, variableEntries);
+          await writeFile(outputFile, variableEntries);
           console.log(
             chalk.green(
               `✓ ${variables.length} variables written to ${outputFile}`,

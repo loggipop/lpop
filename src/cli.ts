@@ -165,11 +165,9 @@ export class LpopCLI {
     input: string,
     options: { env?: string; repo?: string },
   ): Promise<void> {
-    console.error('AAA');
     const serviceName = await this.getServiceName(options);
-    console.error('BBB');
     const keychain = new KeychainManager(serviceName, options.env);
-    console.error('CCC');
+
     try {
       let entries: EnvEntry[];
 

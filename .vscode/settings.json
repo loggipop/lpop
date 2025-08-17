@@ -1,7 +1,10 @@
 {
   "editor.defaultFormatter": "biomejs.biome",
-  "prettier.enable": false,
   "editor.codeActionsOnSave": {
-    "source.fixAll.biome": "explicit"
-  }
+    "source.fixAll.biome": "explicit",
+    "source.organizeImports.biome": "explicit"
+  },
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.formatOnSaveMode": "file",
 }

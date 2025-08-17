@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import packageJson from '../package.json' with { type: 'json' };
 import {
+  asVariable,
   type EnvEntry,
   mergeWithEnvExample,
   parseFile,
@@ -164,9 +165,11 @@ export class LpopCLI {
     input: string,
     options: { env?: string; repo?: string },
   ): Promise<void> {
+    console.error('AAA');
     const serviceName = await this.getServiceName(options);
+    console.error('BBB');
     const keychain = new KeychainManager(serviceName, options.env);
-
+    console.error('CCC');
     try {
       let entries: EnvEntry[];
 
@@ -241,11 +244,10 @@ export class LpopCLI {
         if (variable) {
           if (options.output) {
             // Convert KeychainEntry to VariableEntry
-            const variableEntry: VariableEntry = {
-              type: 'variable',
-              key: variable.key,
-              value: variable.value,
-            };
+            const variableEntry: VariableEntry = asVariable(
+              variable.key,
+              variable.value,
+            );
             await writeFile(options.output, [variableEntry]);
             console.log(
               chalk.green(`✓ Variable ${key} written to ${options.output}`),
@@ -275,11 +277,9 @@ export class LpopCLI {
           );
         } else {
           // Convert KeychainEntry to VariableEntry
-          const variableEntries: VariableEntry[] = variables.map((v) => ({
-            type: 'variable',
-            key: v.key,
-            value: v.value,
-          }));
+          const variableEntries: VariableEntry[] = variables.map((v) =>
+            asVariable(v.key, v.value),
+          );
           await writeFile(outputFile, variableEntries);
           console.log(
             chalk.green(

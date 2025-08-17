@@ -1,11 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from 'vitest';
 
 vi.mock('simple-git');
 vi.mock('git-url-parse');
 
-import { simpleGit } from 'simple-git';
 import GitUrlParse from 'git-url-parse';
-import { GitPathResolver, isDevelopment, getServicePrefix } from '../src/git-path-resolver';
+import { simpleGit } from 'simple-git';
+import {
+  GitPathResolver,
+  getServicePrefix,
+  isDevelopment,
+} from '../src/git-path-resolver';
 
 describe('GitPathResolver', () => {
   let resolver: GitPathResolver;
@@ -19,7 +31,7 @@ describe('GitPathResolver', () => {
 
     mockGit = {
       status: vi.fn(),
-      getRemotes: vi.fn()
+      getRemotes: vi.fn(),
     };
 
     (simpleGit as unknown as Mock).mockReturnValue(mockGit);
@@ -28,13 +40,13 @@ describe('GitPathResolver', () => {
 
   describe('constructor', () => {
     it('should create instance with custom working directory', () => {
-      const customResolver = new GitPathResolver('/custom/path');
+      new GitPathResolver('/custom/path');
       expect(simpleGit).toHaveBeenCalledWith('/custom/path');
     });
 
     it('should use current working directory by default', () => {
       const originalCwd = process.cwd();
-      const defaultResolver = new GitPathResolver();
+      new GitPathResolver();
       expect(simpleGit).toHaveBeenCalledWith(originalCwd);
     });
   });
@@ -65,9 +77,9 @@ describe('GitPathResolver', () => {
           name: 'origin',
           refs: {
             fetch: 'https://github.com/user/repo.git',
-            push: 'https://github.com/user/repo.git'
-          }
-        }
+            push: 'https://github.com/user/repo.git',
+          },
+        },
       ]);
 
       const result = await resolver.getRemoteUrl();
@@ -82,9 +94,9 @@ describe('GitPathResolver', () => {
           name: 'upstream',
           refs: {
             fetch: 'https://github.com/org/project.git',
-            push: 'https://github.com/org/project.git'
-          }
-        }
+            push: 'https://github.com/org/project.git',
+          },
+        },
       ]);
 
       const result = await resolver.getRemoteUrl('upstream');
@@ -115,24 +127,26 @@ describe('GitPathResolver', () => {
         {
           name: 'origin',
           refs: {
-            fetch: 'https://github.com/user/repo.git'
-          }
-        }
+            fetch: 'https://github.com/user/repo.git',
+          },
+        },
       ]);
 
       (GitUrlParse as unknown as Mock).mockReturnValue({
         owner: 'user',
         name: 'repo',
-        full_name: 'user/repo'
+        full_name: 'user/repo',
       });
 
       const result = await resolver.getGitInfo();
 
-      expect(GitUrlParse).toHaveBeenCalledWith('https://github.com/user/repo.git');
+      expect(GitUrlParse).toHaveBeenCalledWith(
+        'https://github.com/user/repo.git',
+      );
       expect(result).toEqual({
         owner: 'user',
         name: 'repo',
-        full_name: 'user/repo'
+        full_name: 'user/repo',
       });
     });
 
@@ -149,9 +163,9 @@ describe('GitPathResolver', () => {
         {
           name: 'origin',
           refs: {
-            fetch: 'invalid-url'
-          }
-        }
+            fetch: 'invalid-url',
+          },
+        },
       ]);
 
       (GitUrlParse as unknown as Mock).mockImplementation(() => {
@@ -170,15 +184,15 @@ describe('GitPathResolver', () => {
         {
           name: 'origin',
           refs: {
-            fetch: 'https://github.com/user/repo.git'
-          }
-        }
+            fetch: 'https://github.com/user/repo.git',
+          },
+        },
       ]);
 
       (GitUrlParse as unknown as Mock).mockReturnValue({
         owner: 'user',
         name: 'repo',
-        full_name: 'user/repo'
+        full_name: 'user/repo',
       });
 
       const originalIsDev = isDevelopment();
@@ -216,24 +230,30 @@ describe('GitPathResolver', () => {
   describe('static methods', () => {
     describe('extractEnvironmentFromService', () => {
       it('should extract environment from service name', () => {
-        const result = GitPathResolver.extractEnvironmentFromService('lpop://user/repo?env=production');
+        const result = GitPathResolver.extractEnvironmentFromService(
+          'lpop://user/repo?env=production',
+        );
         expect(result).toBe('production');
       });
 
       it('should return null when no environment specified', () => {
-        const result = GitPathResolver.extractEnvironmentFromService('lpop://user/repo');
+        const result =
+          GitPathResolver.extractEnvironmentFromService('lpop://user/repo');
         expect(result).toBeNull();
       });
     });
 
     describe('extractRepoFromService', () => {
       it('should extract repo from service name', () => {
-        const result = GitPathResolver.extractRepoFromService('lpop://user/repo?env=production');
+        const result = GitPathResolver.extractRepoFromService(
+          'lpop://user/repo?env=production',
+        );
         expect(result).toBe('user/repo');
       });
 
       it('should handle service name without environment', () => {
-        const result = GitPathResolver.extractRepoFromService('lpop://org/project');
+        const result =
+          GitPathResolver.extractRepoFromService('lpop://org/project');
         expect(result).toBe('org/project');
       });
     });

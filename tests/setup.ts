@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, vi } from 'vitest';
+import { afterAll, beforeAll, vi } from 'vitest';
 
 beforeAll(() => {
   // Mock console methods to avoid noise in tests

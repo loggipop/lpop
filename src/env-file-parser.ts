@@ -1,5 +1,5 @@
-import { readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import type { KeychainEntry } from './keychain-manager.js';
 
@@ -47,11 +47,13 @@ export class EnvFileParser {
     }
 
     const content = await readFile(filePath, 'utf-8');
-    return this.parseContent(content);
+    return EnvFileParser.parseContent(content);
   }
 
   static parseContent(content: string): ParsedEnvFile {
-    const lines = content.split('\n');
+    // Normalize line endings to handle both Windows (\r\n) and Unix (\n)
+    const normalizedContent = content.replace(/\r\n/g, '\n');
+    const lines = normalizedContent.split('\n');
     const entries: EnvEntry[] = [];
     const comments: string[] = [];
     const structure: StructureLine[] = [];
@@ -88,12 +90,26 @@ export class EnvFileParser {
         const key = keyPart.trim();
 
         // Extract inline comment if present
-        const valueMatch = valuePart.match(/^(.*?)(\s*#.*)?$/);
-        const value = valueMatch ? valueMatch[1].trim() : valuePart.trim();
-        const comment = valueMatch && valueMatch[2] ? valueMatch[2].trim() : undefined;
+        // A comment starts with # only when preceded by whitespace and not inside quotes
+        let value = valuePart.trim();
+        let comment = '';
+
+        // Check if there's a comment (hash at the beginning i.e. no value set OR preceded by whitespace i.e. there's a value set)
+        const commentMatch = value.match(/^#(.*)$|(\s+)#(.*)$/);
+        if (commentMatch) {
+          if (commentMatch[1]) {
+            // Hash at the beginning: value is empty, comment is everything after #
+            value = '';
+            comment = `#${commentMatch[1]}`;
+          } else {
+            // Hash preceded by whitespace
+            value = value.substring(0, commentMatch.index).trim();
+            comment = `#${commentMatch[3]}`;
+          }
+        }
 
         // Remove quotes if present
-        const cleanValue = this.removeQuotes(value);
+        const cleanValue = EnvFileParser.removeQuotes(value);
 
         // Create the entry
         const entry: VariableEntry = {
@@ -129,8 +145,12 @@ export class EnvFileParser {
     };
   }
 
-  static async writeFile(filePath: string, entries: EnvEntry[], comments: string[] = []): Promise<void> {
-    const content = this.generateContent(entries, comments);
+  static async writeFile(
+    filePath: string,
+    entries: EnvEntry[],
+    comments: string[] = [],
+  ): Promise<void> {
+    const content = EnvFileParser.generateContent(entries, comments);
     await writeFile(filePath, content, 'utf-8');
   }
 
@@ -155,11 +175,15 @@ export class EnvFileParser {
         case 'empty':
           lines.push(''); // Empty line
           break;
-        case 'variable':
-          const quotedValue = this.needsQuotes(entry.value) ? `"${entry.value}"` : entry.value;
-          const line = entry.comment ? `${entry.key}=${quotedValue} ${entry.comment}` : `${entry.key}=${quotedValue}`;
-          lines.push(line);
+        case 'variable': {
+          let value = EnvFileParser.needsQuotes(entry.value)
+            ? `"${entry.value}"`
+            : entry.value;
+          value = value || '';
+          const comment = entry.comment ? ` ${entry.comment}` : '';
+          lines.push(`${entry.key}=${value}${comment}`);
           break;
+        }
       }
     }
 
@@ -167,13 +191,19 @@ export class EnvFileParser {
   }
 
   private static removeQuotes(value: string): string {
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       return value.slice(1, -1);
     }
     return value;
   }
 
   private static needsQuotes(value: string): boolean {
+    if (value === '') {
+      return false;
+    }
     // Quote if contains spaces, special characters, or is empty
     return /[\s#"'$`\\]/.test(value);
   }
@@ -187,25 +217,30 @@ export class EnvFileParser {
   }
 
   static toKeyValuePairs(entries: EnvEntry[]): Record<string, string> {
-    return entries.reduce((acc, entry) => {
-      if (entry.type === 'variable') {
-        acc[entry.key] = entry.value;
-      }
-      return acc;
-    }, {} as Record<string, string>);
+    return entries.reduce(
+      (acc, entry) => {
+        if (entry.type === 'variable') {
+          acc[entry.key] = entry.value;
+        }
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
   }
 
   static parseVariable(variableString: string): VariableEntry {
     const match = variableString.match(/^([^=]+?)=(.*)$/);
     if (!match) {
-      throw new Error(`Invalid variable format: ${variableString}. Expected KEY=value`);
+      throw new Error(
+        `Invalid variable format: ${variableString}. Expected KEY=value`,
+      );
     }
 
     const [, key, value] = match;
     return {
       type: 'variable',
       key: key.trim(),
-      value: this.removeQuotes(value.trim()),
+      value: EnvFileParser.removeQuotes(value.trim()),
     };
   }
 
@@ -215,11 +250,16 @@ export class EnvFileParser {
    * @param keychainVariables - Variables from keychain
    * @returns Merged environment entries
    */
-  static async mergeWithEnvExample(envExamplePath: string, keychainVariables: KeychainEntry[]): Promise<EnvEntry[]> {
+  static async mergeWithEnvExample(
+    envExamplePath: string,
+    keychainVariables: KeychainEntry[],
+  ): Promise<EnvEntry[]> {
     try {
       // Parse .env.example to get template structure
       const template = await EnvFileParser.parseFile(envExamplePath);
-      const keychainMap = new Map(keychainVariables.map((v) => [v.key, v.value]));
+      const keychainMap = new Map(
+        keychainVariables.map((v) => [v.key, v.value]),
+      );
 
       const mergedEntries: EnvEntry[] = [];
       const usedKeys = new Set<string>();
@@ -230,7 +270,7 @@ export class EnvFileParser {
           // Add standalone comments
           mergedEntries.push({
             type: 'comment',
-            comment: structureLine.content!,
+            comment: structureLine.content || '',
           });
         } else if (structureLine.type === 'empty') {
           // Add empty lines
@@ -279,11 +319,12 @@ export class EnvFileParser {
         }
 
         // Convert KeychainEntry to VariableEntry
-        const remainingVariableEntries: VariableEntry[] = remainingVariables.map((v) => ({
-          type: 'variable',
-          key: v.key,
-          value: v.value,
-        }));
+        const remainingVariableEntries: VariableEntry[] =
+          remainingVariables.map((v) => ({
+            type: 'variable',
+            key: v.key,
+            value: v.value,
+          }));
 
         mergedEntries.push(...remainingVariableEntries);
       }
@@ -292,7 +333,9 @@ export class EnvFileParser {
     } catch (error) {
       // In case the .env.example no longer exists or other filesystem errors then we fallback to not using the template.
       console.log(
-        chalk.yellow(`Warning: Could not parse .env.example: ${error instanceof Error ? error.message : String(error)}`)
+        chalk.yellow(
+          `Warning: Could not parse .env.example: ${error instanceof Error ? error.message : String(error)}`,
+        ),
       );
       console.log(chalk.yellow('Falling back to standard output format'));
       // Convert KeychainEntry to VariableEntry for fallback

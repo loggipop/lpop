@@ -1,7 +1,6 @@
-import { simpleGit, SimpleGit } from 'simple-git';
+import { basename } from 'node:path';
 import GitUrlParse from 'git-url-parse';
-import { existsSync } from 'fs';
-import { resolve, basename } from 'path';
+import { type SimpleGit, simpleGit } from 'simple-git';
 
 export interface GitInfo {
   owner: string;
@@ -17,7 +16,7 @@ export const isDevelopment = () => {
   }
 
   // When running through npm/node_modules (production install), argv[1] contains node_modules
-  if (process.argv[1] && process.argv[1].includes('node_modules')) {
+  if (process.argv[1]?.includes('node_modules')) {
     return false;
   }
 
@@ -25,7 +24,8 @@ export const isDevelopment = () => {
   return true;
 };
 
-export const getServicePrefix = () => (isDevelopment() ? 'lpop-dev://' : 'lpop://');
+export const getServicePrefix = () =>
+  isDevelopment() ? 'lpop-dev://' : 'lpop://';
 
 export class GitPathResolver {
   private git: SimpleGit;

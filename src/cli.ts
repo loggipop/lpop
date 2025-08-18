@@ -120,8 +120,13 @@ export class LpopCLI {
 
     this.program
       .command('env')
-      .description('Run a command with environment variables from keychain')
-      .argument('[command...]', 'Command to run with environment variables')
+      .description(
+        'Run a command with environment variables from keychain (use -- to separate lpop options from command)',
+      )
+      .argument(
+        '[command...]',
+        'Command to run (use -- before command to prevent option conflicts)',
+      )
       .action(async (command: string[], options: CommandOptions) => {
         const globalOptions = this.program.opts();
         const mergedOptions = { ...globalOptions, ...options };
@@ -394,17 +399,43 @@ export class LpopCLI {
     const keychain = new KeychainManager(serviceName, options.env);
 
     try {
+      // Parse command line arguments manually to handle --
+      const args = process.argv.slice(2); // Remove 'node' and script name
+      const envIndex = args.indexOf('env');
+      let actualCommand = command;
+
+      if (envIndex !== -1) {
+        // Find arguments after 'env' command
+        const afterEnvArgs = args.slice(envIndex + 1);
+
+        // Look for -- separator
+        const dashDashIndex = afterEnvArgs.indexOf('--');
+
+        if (dashDashIndex !== -1) {
+          // Everything after -- is the command
+          actualCommand = afterEnvArgs.slice(dashDashIndex + 1);
+        } else {
+          // No -- separator, use the command as passed by commander
+          // But filter out lpop options that might have been included
+          actualCommand = command.filter(
+            (arg) =>
+              !arg.startsWith('-') &&
+              !['development', 'production', 'staging'].includes(arg), // common env values
+          );
+        }
+      }
+
       const variables = await keychain.getEnvironmentVariables();
 
       if (variables.length === 0) {
         console.log(chalk.yellow(`No variables found for ${serviceName}`));
-        if (command.length === 0) {
+        if (actualCommand.length === 0) {
           return;
         }
       }
 
       // If no command specified, just show what variables would be loaded
-      if (command.length === 0) {
+      if (actualCommand.length === 0) {
         console.log(chalk.blue(`Environment variables for ${serviceName}:`));
         for (const { key, value } of variables) {
           console.log(`${key}=${value}`);
@@ -420,12 +451,12 @@ export class LpopCLI {
 
       console.log(
         chalk.blue(
-          `Running "${command.join(' ')}" with ${variables.length} variables from ${serviceName}`,
+          `Running "${actualCommand.join(' ')}" with ${variables.length} variables from ${serviceName}`,
         ),
       );
 
       // Spawn the command with the enhanced environment
-      const child = spawn(command[0], command.slice(1), {
+      const child = spawn(actualCommand[0], actualCommand.slice(1), {
         env,
         stdio: 'inherit',
       });

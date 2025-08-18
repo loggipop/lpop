@@ -50,9 +50,6 @@ function getPlatformInfo() {
 }
 
 async function setupBinary() {
-  console.log('🚀 Starting lpop postinstall script...');
-  console.log(`📍 Package root: ${packageRoot}`);
-
   // Skip postinstall during development (when src directory exists)
   // This is more reliable than checking devDependencies which are included in npm pack
   const srcDir = join(packageRoot, 'src');

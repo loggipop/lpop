@@ -1,3 +1,4 @@
+import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import {
   afterEach,
@@ -25,6 +26,7 @@ import { KeychainManager } from '../src/keychain-manager';
 vi.mock('../src/keychain-manager');
 vi.mock('../src/git-path-resolver');
 vi.mock('node:fs');
+vi.mock('node:child_process');
 vi.mock('chalk', () => ({
   default: {
     blue: vi.fn((text: string) => text),
@@ -37,7 +39,7 @@ vi.mock('chalk', () => ({
 // Mock specific functions from env-file-parser instead of the entire module
 vi.mock('../src/env-file-parser', async (importOriginal) => {
   const actual =
-    (await importOriginal()) as typeof import('../src/env-file-parser');
+    await importOriginal<typeof import('../src/env-file-parser')>();
   return {
     ...actual,
     parseFile: vi.fn(),
@@ -82,6 +84,7 @@ describe('LpopCLI', () => {
   const mockedParseVariable = vi.mocked(parseVariable);
   const mockedWriteFile = vi.mocked(writeFile);
   const mockedMergeWithEnvExample = vi.mocked(mergeWithEnvExample);
+  const mockedSpawn = vi.mocked(spawn);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -123,6 +126,14 @@ describe('LpopCLI', () => {
 
     // Mock getServicePrefix function
     mockedGetServicePrefix.mockReturnValue('lpop://');
+
+    // Mock spawn function with proper typing
+    const mockChildProcess = vi.fn().mockReturnValue({
+      on: vi.fn().mockReturnThis(),
+    });
+    mockedSpawn.mockImplementation(
+      () => mockChildProcess() as unknown as ChildProcess,
+    );
 
     cli = new LpopCLI();
   });
@@ -594,6 +605,358 @@ describe('LpopCLI', () => {
         '.env.local',
         expectedMergedEntries,
       );
+    });
+  });
+
+  describe('Env Command', () => {
+    it('should display variables when no command provided', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DB_URL', value: 'postgres://localhost' },
+      ]);
+
+      process.argv = ['node', 'lpop', 'env'];
+      await cli.run();
+
+      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Environment variables for'),
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith('API_KEY=secret123');
+      expect(consoleLogSpy).toHaveBeenCalledWith('DB_URL=postgres://localhost');
+      expect(mockedSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should show message when no variables found and no command', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
+
+      process.argv = ['node', 'lpop', 'env'];
+      await cli.run();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No variables found'),
+      );
+      expect(mockedSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should run command with environment variables', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DB_URL', value: 'postgres://localhost' },
+      ]);
+
+      process.argv = ['node', 'lpop', 'env', 'npm', 'start'];
+      await cli.run();
+
+      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Running "npm start" with 2 variables'),
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('npm', ['start'], {
+        env: expect.objectContaining({
+          API_KEY: 'secret123',
+          DB_URL: 'postgres://localhost',
+        }),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should run command even when no variables found', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
+
+      process.argv = ['node', 'lpop', 'env', 'node', 'server.js'];
+      await cli.run();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No variables found'),
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Running "node server.js" with 0 variables'),
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('node', ['server.js'], {
+        env: expect.objectContaining(process.env),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should preserve existing environment variables', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+      ]);
+
+      process.argv = ['node', 'lpop', 'env', 'echo', 'test'];
+      await cli.run();
+
+      expect(mockedSpawn).toHaveBeenCalledWith('echo', ['test'], {
+        env: expect.objectContaining({
+          ...process.env,
+          API_KEY: 'secret123',
+        }),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should handle spawn errors', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+      ]);
+
+      const mockErrorProcess = {
+        on: vi.fn((event: string, callback: (error: Error) => void) => {
+          if (event === 'error') {
+            // Immediately call the error callback
+            callback(new Error('Command not found'));
+          }
+          return mockErrorProcess; // Return self to satisfy ChildProcess interface
+        }),
+      };
+      mockedSpawn.mockImplementationOnce(
+        () => mockErrorProcess as unknown as ChildProcess,
+      );
+
+      process.argv = ['node', 'lpop', 'env', 'nonexistent-command'];
+
+      try {
+        await cli.run();
+      } catch {
+        // Expected to throw due to process.exit mock
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to start command: Command not found'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should use environment option', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'prod-secret' },
+      ]);
+
+      process.argv = [
+        'node',
+        'lpop',
+        'env',
+        '-e',
+        'production',
+        'npm',
+        'start',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.any(String),
+        'production',
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('npm', ['start'], {
+        env: expect.objectContaining({
+          API_KEY: 'prod-secret',
+        }),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should use custom repo option', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+      ]);
+
+      process.argv = ['node', 'lpop', 'env', '-r', 'custom/repo', 'bun', 'dev'];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.stringContaining('custom/repo'),
+        undefined,
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('bun', ['dev'], {
+        env: expect.objectContaining({
+          API_KEY: 'secret123',
+        }),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should handle keychain errors gracefully', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockRejectedValue(
+        new Error('Keychain access denied'),
+      );
+
+      process.argv = ['node', 'lpop', 'env', 'npm', 'start'];
+
+      try {
+        await cli.run();
+      } catch {
+        // Expected to throw due to process.exit mock
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Keychain access denied'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(mockedSpawn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Env Command with -- Separator', () => {
+    it('should run command with -- separator', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DB_URL', value: 'postgres://localhost' },
+      ]);
+
+      process.argv = ['node', 'lpop', 'env', '--', 'npm', 'start'];
+      await cli.run();
+
+      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Running "npm start" with 2 variables'),
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('npm', ['start'], {
+        env: expect.objectContaining({
+          API_KEY: 'secret123',
+          DB_URL: 'postgres://localhost',
+        }),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should run command with environment option and -- separator', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'prod-secret' },
+      ]);
+
+      process.argv = [
+        'node',
+        'lpop',
+        'env',
+        '--env',
+        'production',
+        '--',
+        'npm',
+        'run',
+        'build',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.any(String),
+        'production',
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('npm', ['run', 'build'], {
+        env: expect.objectContaining({
+          API_KEY: 'prod-secret',
+        }),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should run command with repo option and -- separator', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+      ]);
+
+      process.argv = [
+        'node',
+        'lpop',
+        'env',
+        '--repo',
+        'custom/repo',
+        '--',
+        'bun',
+        'dev',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.stringContaining('custom/repo'),
+        undefined,
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('bun', ['dev'], {
+        env: expect.objectContaining({
+          API_KEY: 'secret123',
+        }),
+        stdio: 'inherit',
+      });
+    });
+
+    it('should handle complex commands with multiple arguments after --', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'NODE_ENV', value: 'development' },
+        { key: 'PORT', value: '3000' },
+      ]);
+
+      process.argv = [
+        'node',
+        'lpop',
+        'env',
+        '--',
+        'node',
+        'server.js',
+        '--port',
+        '8080',
+        '--verbose',
+      ];
+      await cli.run();
+
+      expect(mockedSpawn).toHaveBeenCalledWith(
+        'node',
+        ['server.js', '--port', '8080', '--verbose'],
+        {
+          env: expect.objectContaining({
+            NODE_ENV: 'development',
+            PORT: '3000',
+          }),
+          stdio: 'inherit',
+        },
+      );
+    });
+
+    it('should handle empty command after --', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+      ]);
+
+      process.argv = ['node', 'lpop', 'env', '--'];
+      await cli.run();
+
+      // When no command is provided after --, should display variables instead of running empty command
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Environment variables for'),
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith('API_KEY=secret123');
+      // Should not call spawn with empty command
+      expect(mockedSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should work with short option flags and -- separator', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'staging-secret' },
+      ]);
+
+      process.argv = [
+        'node',
+        'lpop',
+        'env',
+        '-e',
+        'staging',
+        '-r',
+        'test/repo',
+        '--',
+        'python',
+        'app.py',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.stringContaining('test/repo'),
+        'staging',
+      );
+      expect(mockedSpawn).toHaveBeenCalledWith('python', ['app.py'], {
+        env: expect.objectContaining({
+          API_KEY: 'staging-secret',
+        }),
+        stdio: 'inherit',
+      });
     });
   });
 });

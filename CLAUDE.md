@@ -13,7 +13,7 @@ lpop is a CLI tool for managing environment variables securely in the system key
 bun install
 
 # Build the project
-bun build
+bun build:binaries
 
 # Run in development mode
 bun dev
@@ -26,6 +26,9 @@ bun watch
 
 # Run the built CLI
 bun start
+
+# Run the tests using vitest
+bun run test
 ```
 
 ## Architecture

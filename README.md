@@ -8,6 +8,7 @@ lpop stores your environment variables in the system keychain (macOS Keychain, W
 2. Delete your repos - when you clone again, just call `lpop .env.local` to get your secrets back
 3. Clone multiple times or use git trees - call `lpop .env.local` and your secrets appear
 4. Use with AI Coding tools - run Claude, or Cursor on 20 different copies of the repo, without ever giving it access to secrets
+5. **Skip .env files entirely** - Use `lpop env -- npm start` to run commands with variables directly from keychain
 
 ## 🚀 Installation
 
@@ -62,6 +63,18 @@ lpop .env.production --env production
 
 # Retrieve staging variables
 lpop --env staging
+```
+
+### 4️⃣ Run commands without .env files
+
+```bash
+# Run any command with keychain variables loaded
+lpop env -- npm start
+lpop env -- node server.js
+lpop env -- bun dev
+
+# Use with specific environments
+lpop env --env production -- npm run build
 ```
 
 ## 🎨 Visual Examples
@@ -126,6 +139,21 @@ $ lpop --env production
 ✅ 3 variables written to .env.local using .env.example template
 ```
 
+### 🚀 Running Commands with Keychain Variables
+
+```bash
+$ lpop env -- npm start
+```
+
+```
+Running "npm start" with 3 variables from lpop://acme/app
+
+> my-app@1.0.0 start
+> node server.js
+
+🚀 Server running on port 3000 with API_KEY loaded from keychain
+```
+
 ## 📚 Command Reference
 
 ### 🧠 Smart Command (Recommended)
@@ -138,6 +166,7 @@ lpop intelligently determines what you want to do:
 | `lpop .env`      | Add/update variables from file            |
 | `lpop KEY=value` | Add/update a single variable              |
 | `lpop .env.dev`  | Export variables to specific file         |
+| `lpop env -- <cmd>` | Run command with keychain variables    |
 
 ### 📝 Explicit Commands
 
@@ -180,6 +209,14 @@ lpop clear --confirm             # All variables (with confirmation)
 lpop list                        # Show all stored repositories
 ```
 
+#### 🚀 Run Commands
+
+```bash
+lpop env                         # Show variables that would be loaded
+lpop env -- npm start            # Run with keychain variables
+lpop env --env prod -- bun build # Use specific environment
+```
+
 </details>
 
 ## 🎯 Common Use Cases
@@ -196,6 +233,24 @@ lpop
 
 # 3. Start developing!
 npm run dev
+```
+
+### 🛡️ Security-First Development (No .env files)
+
+```bash
+# 1. Store your secrets once in keychain
+lpop API_KEY=sk-secret123
+lpop DATABASE_URL=postgres://localhost:5432/mydb
+
+# 2. Delete .env files completely
+rm .env .env.local .env.development
+
+# 3. Run any command with variables from keychain
+lpop env -- npm start
+lpop env -- bun dev
+lpop env -- python app.py
+
+# Variables are loaded securely without ever touching disk!
 ```
 
 ### 🚢 Managing Multiple Environments
@@ -264,6 +319,16 @@ When you run `lpop` and a `.env.example` file exists:
 2. **Variable Matching**: Keychain variables matching template keys get values inserted
 3. **Additional Variables**: Extra keychain variables are added at the end in alphabetical order
 4. **Fallback**: If `.env.example` doesn't exist, uses standard format
+
+</details>
+
+<details>
+<summary><strong>What's the difference between `lpop` and `lpop env`?</strong></summary>
+
+- **`lpop`**: Exports variables to a `.env.local` file on disk (traditional approach)
+- **`lpop env -- <command>`**: Runs commands with variables loaded directly from keychain (no files created)
+
+Use `lpop env` when you want maximum security - no secrets ever touch disk. Perfect for security-conscious teams or when working with sensitive production data.
 
 </details>
 

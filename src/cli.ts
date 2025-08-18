@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import chalk from 'chalk';
 import { Command } from 'commander';
@@ -115,6 +116,21 @@ export class LpopCLI {
       .description('List all stored repositories and environments')
       .action(async () => {
         await this.handleList();
+      });
+
+    this.program
+      .command('env')
+      .description(
+        'Run a command with environment variables from keychain (use -- to separate lpop options from command)',
+      )
+      .argument(
+        '[command...]',
+        'Command to run (use -- before command to prevent option conflicts)',
+      )
+      .action(async (command: string[], options: CommandOptions) => {
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleEnv(command, mergedOptions);
       });
   }
 
@@ -373,6 +389,95 @@ export class LpopCLI {
         'Use specific repo/env combinations to check for stored variables.',
       ),
     );
+  }
+
+  private async handleEnv(
+    command: string[],
+    options: CommandOptions,
+  ): Promise<void> {
+    const serviceName = await this.getServiceName(options);
+    const keychain = new KeychainManager(serviceName, options.env);
+
+    try {
+      // Parse command line arguments manually to handle --
+      const args = process.argv.slice(2); // Remove 'node' and script name
+      const envIndex = args.indexOf('env');
+      let actualCommand = command;
+
+      if (envIndex !== -1) {
+        // Find arguments after 'env' command
+        const afterEnvArgs = args.slice(envIndex + 1);
+
+        // Look for -- separator
+        const dashDashIndex = afterEnvArgs.indexOf('--');
+
+        if (dashDashIndex !== -1) {
+          // Everything after -- is the command
+          actualCommand = afterEnvArgs.slice(dashDashIndex + 1);
+        } else {
+          // No -- separator, use the command as passed by commander
+          // But filter out lpop options that might have been included
+          actualCommand = command.filter(
+            (arg) =>
+              !arg.startsWith('-') &&
+              !['development', 'production', 'staging'].includes(arg), // common env values
+          );
+        }
+      }
+
+      const variables = await keychain.getEnvironmentVariables();
+
+      if (variables.length === 0) {
+        console.log(chalk.yellow(`No variables found for ${serviceName}`));
+        if (actualCommand.length === 0) {
+          return;
+        }
+      }
+
+      // If no command specified, just show what variables would be loaded
+      if (actualCommand.length === 0) {
+        console.log(chalk.blue(`Environment variables for ${serviceName}:`));
+        for (const { key, value } of variables) {
+          console.log(`${key}=${value}`);
+        }
+        return;
+      }
+
+      // Prepare environment with keychain variables
+      const env = { ...process.env };
+      for (const { key, value } of variables) {
+        env[key] = value;
+      }
+
+      console.log(
+        chalk.blue(
+          `Running "${actualCommand.join(' ')}" with ${variables.length} variables from ${serviceName}`,
+        ),
+      );
+
+      // Spawn the command with the enhanced environment
+      const child = spawn(actualCommand[0], actualCommand.slice(1), {
+        env,
+        stdio: 'inherit',
+      });
+
+      // Handle process exit
+      child.on('close', (code) => {
+        process.exit(code || 0);
+      });
+
+      child.on('error', (error) => {
+        console.error(chalk.red(`Failed to start command: ${error.message}`));
+        process.exit(1);
+      });
+    } catch (error) {
+      console.error(
+        chalk.red(
+          `Error loading environment: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+      process.exit(1);
+    }
   }
 
   private async getServiceName(options: CommandOptions): Promise<string> {

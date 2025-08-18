@@ -56,9 +56,6 @@
     "typescript": "^5.7.2",
     "vitest": "^3.2.4"
   },
-  "engines": {
-    "node": ">=24.0.0"
-  },
   "optionalDependencies": {
     "lpop-linux-x64": "*",
     "lpop-linux-arm64": "*",

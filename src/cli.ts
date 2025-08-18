@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import chalk from 'chalk';
 import { Command } from 'commander';
@@ -115,6 +116,16 @@ export class LpopCLI {
       .description('List all stored repositories and environments')
       .action(async () => {
         await this.handleList();
+      });
+
+    this.program
+      .command('env')
+      .description('Run a command with environment variables from keychain')
+      .argument('[command...]', 'Command to run with environment variables')
+      .action(async (command: string[], options: CommandOptions) => {
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleEnv(command, mergedOptions);
       });
   }
 
@@ -373,6 +384,69 @@ export class LpopCLI {
         'Use specific repo/env combinations to check for stored variables.',
       ),
     );
+  }
+
+  private async handleEnv(
+    command: string[],
+    options: CommandOptions,
+  ): Promise<void> {
+    const serviceName = await this.getServiceName(options);
+    const keychain = new KeychainManager(serviceName, options.env);
+
+    try {
+      const variables = await keychain.getEnvironmentVariables();
+
+      if (variables.length === 0) {
+        console.log(chalk.yellow(`No variables found for ${serviceName}`));
+        if (command.length === 0) {
+          return;
+        }
+      }
+
+      // If no command specified, just show what variables would be loaded
+      if (command.length === 0) {
+        console.log(chalk.blue(`Environment variables for ${serviceName}:`));
+        for (const { key, value } of variables) {
+          console.log(`${key}=${value}`);
+        }
+        return;
+      }
+
+      // Prepare environment with keychain variables
+      const env = { ...process.env };
+      for (const { key, value } of variables) {
+        env[key] = value;
+      }
+
+      console.log(
+        chalk.blue(
+          `Running "${command.join(' ')}" with ${variables.length} variables from ${serviceName}`,
+        ),
+      );
+
+      // Spawn the command with the enhanced environment
+      const child = spawn(command[0], command.slice(1), {
+        env,
+        stdio: 'inherit',
+      });
+
+      // Handle process exit
+      child.on('close', (code) => {
+        process.exit(code || 0);
+      });
+
+      child.on('error', (error) => {
+        console.error(chalk.red(`Failed to start command: ${error.message}`));
+        process.exit(1);
+      });
+    } catch (error) {
+      console.error(
+        chalk.red(
+          `Error loading environment: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+      process.exit(1);
+    }
   }
 
   private async getServiceName(options: CommandOptions): Promise<string> {

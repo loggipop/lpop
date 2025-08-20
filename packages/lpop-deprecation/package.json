@@ -1,0 +1,36 @@
+{
+  "name": "lpop",
+  "version": "0.2.1",
+  "description": "DEPRECATED - Package moved to @loggipop/lpop",
+  "type": "module",
+  "bin": {
+    "lpop": "./bin/lpop-deprecation"
+  },
+  "scripts": {
+    "postinstall": "node deprecation-notice.js"
+  },
+  "keywords": [
+    "cli",
+    "environment",
+    "variables",
+    "keychain",
+    "git",
+    "deprecated"
+  ],
+  "author": "Loggipop",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loggipop/lpop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/loggipop/lpop/issues"
+  },
+  "homepage": "https://github.com/loggipop/lpop#readme",
+  "files": [
+    "bin/lpop-deprecation",
+    "deprecation-notice.js",
+    "README.md"
+  ],
+  "deprecated": "Package moved to @loggipop/lpop. Please install @loggipop/lpop instead."
+}

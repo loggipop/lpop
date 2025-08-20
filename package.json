@@ -1,72 +1,72 @@
 {
-  "name": "lpop",
-  "version": "0.2.0",
-  "description": "A CLI tool for managing environment variables in the system keychain",
-  "type": "module",
-  "bin": {
-    "lpop": "./bin/lpop"
-  },
-  "scripts": {
-    "build:binaries": "./scripts/build-binary.sh",
-    "build:sign-notarize": "./scripts/build-sign-notarize.sh",
-    "prepare-packages": "node scripts/prepare-packages.js",
-    "dev": "bun run src/index.ts",
-    "clean": "rm -rf dist/ lpop lpop-*",
-    "lint": "biome check",
-    "lint:fix": "biome check --write",
-    "prepack": "bun run build:binaries && bun run prepare-packages",
-    "postinstall": "node scripts/postinstall.js",
-    "test": "vitest --run",
-    "test:watch": "vitest --watch",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
-  },
-  "keywords": [
-    "cli",
-    "environment",
-    "variables",
-    "keychain",
-    "git"
-  ],
-  "author": "Loggipop",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/loggipop/lpop.git"
-  },
-  "bugs": {
-    "url": "https://github.com/loggipop/lpop/issues"
-  },
-  "homepage": "https://github.com/loggipop/lpop#readme",
-  "devDependencies": {
-    "@biomejs/biome": "2.1.4",
-    "@napi-rs/keyring": "^1.1.8",
-    "@types/bun": "latest",
-    "@types/node": "^24.2.0",
-    "@vitest/coverage-v8": "^3.2.4",
-    "@vitest/ui": "^3.2.4",
-    "chalk": "^5.4.1",
-    "commander": "^14.0.0",
-    "dotenv": "^17.2.0",
-    "git-url-parse": "^16.1.0",
-    "happy-dom": "^18.0.1",
-    "lefthook": "^1.12.3",
-    "simple-git": "^3.28.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "vitest": "^3.2.4"
-  },
-  "optionalDependencies": {
-    "lpop-linux-x64": "*",
-    "lpop-linux-arm64": "*",
-    "lpop-darwin-x64": "*",
-    "lpop-darwin-arm64": "*",
-    "lpop-windows-x64": "*"
-  },
-  "files": [
-    "bin/lpop",
-    "scripts/postinstall.js",
-    "README.md",
-    "LICENSE"
-  ]
+	"name": "@loggipop/lpop",
+	"version": "0.3.0",
+	"description": "A CLI tool for managing environment variables in the system keychain",
+	"type": "module",
+	"bin": {
+		"lpop": "./bin/lpop"
+	},
+	"scripts": {
+		"build:binaries": "./scripts/build-binary.sh",
+		"build:sign-notarize": "./scripts/build-sign-notarize.sh",
+		"prepare-packages": "node scripts/prepare-packages.js",
+		"dev": "bun run src/index.ts",
+		"clean": "rm -rf dist/ lpop lpop-*",
+		"lint": "biome check",
+		"lint:fix": "biome check --write",
+		"prepack": "bun run build:binaries && bun run prepare-packages",
+		"postinstall": "node scripts/postinstall.js",
+		"test": "vitest --run",
+		"test:watch": "vitest --watch",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest --coverage"
+	},
+	"keywords": [
+		"cli",
+		"environment",
+		"variables",
+		"keychain",
+		"git"
+	],
+	"author": "Loggipop",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/loggipop/lpop.git"
+	},
+	"bugs": {
+		"url": "https://github.com/loggipop/lpop/issues"
+	},
+	"homepage": "https://github.com/loggipop/lpop#readme",
+	"devDependencies": {
+		"@biomejs/biome": "2.1.4",
+		"@napi-rs/keyring": "^1.1.8",
+		"@types/bun": "latest",
+		"@types/node": "^24.2.0",
+		"@vitest/coverage-v8": "^3.2.4",
+		"@vitest/ui": "^3.2.4",
+		"chalk": "^5.4.1",
+		"commander": "^14.0.0",
+		"dotenv": "^17.2.0",
+		"git-url-parse": "^16.1.0",
+		"happy-dom": "^18.0.1",
+		"lefthook": "^1.12.3",
+		"simple-git": "^3.28.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2",
+		"vitest": "^3.2.4"
+	},
+	"optionalDependencies": {
+		"@loggipop/lpop-linux-x64": "0.3.0",
+		"@loggipop/lpop-linux-arm64": "0.3.0",
+		"@loggipop/lpop-darwin-x64": "0.3.0",
+		"@loggipop/lpop-darwin-arm64": "0.3.0",
+		"@loggipop/lpop-windows-x64": "0.3.0"
+	},
+	"files": [
+		"bin/lpop",
+		"scripts/postinstall.js",
+		"README.md",
+		"LICENSE"
+	]
 }

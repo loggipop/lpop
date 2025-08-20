@@ -403,9 +403,9 @@ jobs:
           # Linux packages
           if [ -f packages/lpop-linux-x64/lpop-linux-x64 ]; then
             if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
-              echo "Publishing lpop-linux-x64 (signed)..."
+              echo "Publishing @loggipop/lpop-linux-x64 (signed)..."
             else
-              echo "Publishing lpop-linux-x64 (unsigned)..."
+              echo "Publishing @loggipop/lpop-linux-x64 (unsigned)..."
             fi
             cd packages/lpop-linux-x64
             bun publish --access public
@@ -415,9 +415,9 @@ jobs:
           
           if [ -f packages/lpop-linux-arm64/lpop-linux-arm64 ]; then
             if [ "${{ needs.check-certificates.outputs.has-linux-cert }}" == "true" ]; then
-              echo "Publishing lpop-linux-arm64 (signed)..."
+              echo "Publishing @loggipop/lpop-linux-arm64 (signed)..."
             else
-              echo "Publishing lpop-linux-arm64 (unsigned)..."
+              echo "Publishing @loggipop/lpop-linux-arm64 (unsigned)..."
             fi
             cd packages/lpop-linux-arm64
             bun publish --access public
@@ -428,7 +428,7 @@ jobs:
           # macOS packages (only signed)
           if [ "${{ needs.check-certificates.outputs.has-macos-cert }}" == "true" ]; then
             if [ -f packages/lpop-darwin-x64/lpop-darwin-x64 ]; then
-              echo "Publishing lpop-darwin-x64 (signed)..."
+              echo "Publishing @loggipop/lpop-darwin-x64 (signed)..."
               cd packages/lpop-darwin-x64
               bun publish --access public
               cd ../..
@@ -436,7 +436,7 @@ jobs:
             fi
             
             if [ -f packages/lpop-darwin-arm64/lpop-darwin-arm64 ]; then
-              echo "Publishing lpop-darwin-arm64 (signed)..."
+              echo "Publishing @loggipop/lpop-darwin-arm64 (signed)..."
               cd packages/lpop-darwin-arm64
               bun publish --access public
               cd ../..
@@ -447,9 +447,9 @@ jobs:
           # Windows packages
           if [ -f packages/lpop-windows-x64/lpop-windows-x64.exe ]; then
             if [ "${{ needs.check-certificates.outputs.has-windows-cert }}" == "true" ]; then
-              echo "Publishing lpop-windows-x64 (signed)..."
+              echo "Publishing @loggipop/lpop-windows-x64 (signed)..."
             else
-              echo "Publishing lpop-windows-x64 (unsigned)..."
+              echo "Publishing @loggipop/lpop-windows-x64 (unsigned)..."
             fi
             cd packages/lpop-windows-x64
             bun publish --access public
@@ -471,25 +471,25 @@ jobs:
 
           // Include Linux packages if binaries exist (signed or unsigned)
           if (fs.existsSync('packages/lpop-linux-x64/lpop-linux-x64')) {
-            optDeps['lpop-linux-x64'] = pkg.version;
+            optDeps['@loggipop/lpop-linux-x64'] = pkg.version;
           }
           if (fs.existsSync('packages/lpop-linux-arm64/lpop-linux-arm64')) {
-            optDeps['lpop-linux-arm64'] = pkg.version;
+            optDeps['@loggipop/lpop-linux-arm64'] = pkg.version;
           }
 
           // Include macOS packages only if signed (requirement remains)
           if ('${{ needs.check-certificates.outputs.has-macos-cert }}' === 'true') {
             if (fs.existsSync('packages/lpop-darwin-x64/lpop-darwin-x64')) {
-              optDeps['lpop-darwin-x64'] = pkg.version;
+              optDeps['@loggipop/lpop-darwin-x64'] = pkg.version;
             }
             if (fs.existsSync('packages/lpop-darwin-arm64/lpop-darwin-arm64')) {
-              optDeps['lpop-darwin-arm64'] = pkg.version;
+              optDeps['@loggipop/lpop-darwin-arm64'] = pkg.version;
             }
           }
 
           // Include Windows packages if binaries exist (signed or unsigned)
           if (fs.existsSync('packages/lpop-windows-x64/lpop-windows-x64.exe')) {
-            optDeps['lpop-windows-x64'] = pkg.version;
+            optDeps['@loggipop/lpop-windows-x64'] = pkg.version;
           }
 
           pkg.optionalDependencies = optDeps;

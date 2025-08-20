@@ -14,7 +14,7 @@ lpop stores your environment variables in the system keychain (macOS Keychain, W
 
 ```bash
 # Install globally with npm
-npm install -g lpop
+npm install -g @loggipop/lpop
 ```
 
 ## 📖 How It Works

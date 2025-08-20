@@ -1,6 +1,6 @@
 {
-  "name": "lpop-darwin-x64",
-  "version": "0.1.13",
+  "name": "@loggipop/lpop-darwin-x64",
+  "version": "0.3.0",
   "description": "lpop binary for macOS x64",
   "os": [
     "darwin"

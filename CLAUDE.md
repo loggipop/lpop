@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-lpop is a CLI tool for managing environment variables securely in the system keychain. It uses git repository context to organize variables by repo and environment.
+lpop (@loggipop/lpop) is a CLI tool for managing environment variables securely in the system keychain. It uses git repository context to organize variables by repo and environment.
 
 ## Development Commands
 

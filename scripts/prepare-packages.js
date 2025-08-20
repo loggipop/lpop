@@ -25,11 +25,11 @@ console.log(`Main package version: ${mainVersion}`);
 
 for (const { name: platform, arch } of platforms) {
   const target = `${platform}-${arch}`;
-  const packageName = `lpop-${target}`;
+  const packageName = `@loggipop/lpop-${target}`;
   const packageJsonPath = join(
     packageRoot,
     'packages',
-    packageName,
+    `lpop-${target}`,
     'package.json',
   );
 
@@ -48,7 +48,7 @@ console.log(
 if (mainPackageJson.optionalDependencies) {
   let updated = false;
   for (const dep in mainPackageJson.optionalDependencies) {
-    if (dep.startsWith('lpop-')) {
+    if (dep.startsWith('@loggipop/lpop-')) {
       mainPackageJson.optionalDependencies[dep] = mainVersion;
       updated = true;
     }
@@ -66,12 +66,12 @@ console.log('📦 Copying binaries to platform packages...');
 
 for (const { name: platform, arch } of platforms) {
   const target = `${platform}-${arch}`;
-  const packageName = `lpop-${target}`;
+  const packageName = `@loggipop/lpop-${target}`;
   const binaryName =
     platform === 'windows' ? `lpop-${target}.exe` : `lpop-${target}`;
 
   const sourcePath = join(packageRoot, 'dist', binaryName);
-  const destDir = join(packageRoot, 'packages', packageName);
+  const destDir = join(packageRoot, 'packages', `lpop-${target}`);
   const destPath = join(destDir, binaryName);
 
   if (existsSync(sourcePath)) {

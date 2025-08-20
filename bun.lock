@@ -22,11 +22,11 @@
         "vitest": "^3.2.4",
       },
       "optionalDependencies": {
-        "lpop-darwin-arm64": "*",
-        "lpop-darwin-x64": "*",
-        "lpop-linux-arm64": "*",
-        "lpop-linux-x64": "*",
-        "lpop-windows-x64": "*",
+        "@loggipop/lpop-darwin-arm64": "*",
+        "@loggipop/lpop-darwin-x64": "*",
+        "@loggipop/lpop-linux-arm64": "*",
+        "@loggipop/lpop-linux-x64": "*",
+        "@loggipop/lpop-windows-x64": "*",
       },
     },
   },
@@ -348,16 +348,6 @@
     "lefthook-windows-x64": ["lefthook-windows-x64@1.12.3", "", { "os": "win32", "cpu": "x64" }, "sha512-7Co/L8e2x2hGC1L33jDJ4ZlTkO3PJm25GOGpLfN1kqwhGB/uzMLeTI/PBczjlIN8isUv26ouNd9rVR7Bibrwyg=="],
 
     "loupe": ["loupe@3.2.0", "", {}, "sha512-2NCfZcT5VGVNX9mSZIxLRkEAegDGBpuQZBy13desuHeVORmBDyAET4TkJr4SjqQy3A8JDofMN6LpkK8Xcm/dlw=="],
-
-    "lpop-darwin-arm64": ["lpop-darwin-arm64@0.1.13", "", { "os": "darwin", "cpu": "arm64" }, "sha512-/5S/kps4Aq+vWTxPBKpUok+ToSr0w4SsUvi7WdWacGQZISLCIziFhWNJs/N8/y54/1KlOl7jnk7vAyC/oZBX8g=="],
-
-    "lpop-darwin-x64": ["lpop-darwin-x64@0.1.13", "", { "os": "darwin", "cpu": "x64" }, "sha512-EOEow22WvtXRAm3nbJBvZV2ee+2OtcabNjYFb6gwWXL5kwwCNLOTqXUA+/XL155hsq3SqenJBZffKf8XYAjYEQ=="],
-
-    "lpop-linux-arm64": ["lpop-linux-arm64@0.1.13", "", { "os": "linux", "cpu": "arm64" }, "sha512-9wyLRkbWFrcvNCKP7ym2t3VxDwA77gtbD5k30N8qt4FRfYX5CmMmFgBQ/mcCptkh0UdhK0AOX/q/ac3kH38NQw=="],
-
-    "lpop-linux-x64": ["lpop-linux-x64@0.1.13", "", { "os": "linux", "cpu": "x64" }, "sha512-MxGBWXWOZZL/7hFtI43CL0FegHobOa7SnUaSsxV8HOmLB1cSsQ0jfn7BCKdcF/jcmesqXk8W8v/61otiw34x4w=="],
-
-    "lpop-windows-x64": ["lpop-windows-x64@0.1.13", "", { "os": "win32", "cpu": "x64" }, "sha512-dGn5+TjKKHDdkO7Rc6Yt515lOuNYFqUUWk7HxeZfhGRKWQ4ars3syHdyLI9mPNNbIjiQRtqO5Mnqfpevz7e/EA=="],
 
     "lru-cache": ["lru-cache@10.4.3", "", {}, "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="],
 

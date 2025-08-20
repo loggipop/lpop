@@ -62,7 +62,6 @@ async function setupBinary() {
 
   const { platform, arch } = getPlatformInfo();
   const target = `${platform}-${arch}`;
-  const packageName = `lpop-${target}`;
   const binaryName =
     platform === 'windows' ? `lpop-${target}.exe` : `lpop-${target}`;
 
@@ -72,7 +71,8 @@ async function setupBinary() {
   const optionalDepPath = join(
     packageRoot,
     'node_modules',
-    packageName,
+    '@loggipop',
+    `lpop-${target}`,
     binaryName,
   );
   if (existsSync(optionalDepPath)) {

@@ -237,11 +237,14 @@ export class LpopCLI {
     options: GetOptions,
   ): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    console.log(
-      chalk.blue(
-        `Getting variables for ${serviceName} with repo ${options.repo} and env ${options.env}`,
-      ),
-    );
+    let logMsg = `Getting variables for ${serviceName}`;
+    if (options.repo) {
+      logMsg += ` for repo ${options.repo}`;
+    }
+    if (options.env) {
+      logMsg += ` [env: ${options.env}]`;
+    }
+    console.log(chalk.blue(logMsg));
     const keychain = new KeychainManager(serviceName, options.env);
 
     try {
@@ -284,11 +287,30 @@ export class LpopCLI {
             variables,
           );
           await writeFile(outputFile, mergedEntries);
+          let varsWritten = 0;
+          let emptyVarsWritten = 0;
+
+          for (const entry of mergedEntries) {
+            if (entry.type === 'variable') {
+              if (entry.value.trim() !== '') {
+                varsWritten++;
+              } else {
+                emptyVarsWritten++;
+              }
+            }
+          }
           console.log(
             chalk.green(
-              `✓ ${mergedEntries.length} variables written to ${outputFile} using .env.example template`,
+              `✓ ${varsWritten} variables written to ${outputFile} using .env.example template`,
             ),
           );
+          if (emptyVarsWritten > 0) {
+            console.log(
+              chalk.yellow(
+                `⚠️  ${emptyVarsWritten} additional unset variables copied from .env.example template`,
+              ),
+            );
+          }
         } else {
           // Convert KeychainEntry to VariableEntry
           const variableEntries: VariableEntry[] = variables.map((v) =>

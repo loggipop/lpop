@@ -1,45 +1,14 @@
 {
 	"name": "@loggipop/lpop",
 	"version": "0.3.1",
-	"description": "A CLI tool for managing environment variables in the system keychain",
-	"type": "module",
-	"bin": {
-		"lpop": "./bin/lpop"
-	},
-	"scripts": {
-		"build:binaries": "./scripts/build-binary.sh",
-		"build:sign-notarize": "./scripts/build-sign-notarize.sh",
-		"prepare-packages": "node scripts/prepare-packages.js",
-		"dev": "bun run src/index.ts",
-		"clean": "rm -rf dist/ lpop lpop-*",
-		"lint": "biome check",
-		"lint:fix": "biome check --write",
-		"prepack": "bun run build:binaries && bun run prepare-packages",
-		"postinstall": "node scripts/postinstall.js",
-		"test": "vitest --run",
-		"test:watch": "vitest --watch",
-		"test:ui": "vitest --ui",
-		"test:coverage": "vitest --coverage"
-	},
-	"keywords": [
-		"cli",
-		"environment",
-		"variables",
-		"keychain",
-		"git"
-	],
 	"author": "Loggipop",
-	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/loggipop/lpop.git"
 	},
-	"bugs": {
-		"url": "https://github.com/loggipop/lpop/issues"
-	},
-	"homepage": "https://github.com/loggipop/lpop#readme",
 	"devDependencies": {
 		"@biomejs/biome": "2.1.4",
+		"@dajiaji/mlkem": "npm:@jsr/dajiaji__mlkem",
 		"@napi-rs/keyring": "^1.1.8",
 		"@types/bun": "latest",
 		"@types/node": "^24.2.0",
@@ -63,10 +32,45 @@
 		"@loggipop/lpop-darwin-arm64": "latest",
 		"@loggipop/lpop-windows-x64": "latest"
 	},
+	"bin": {
+		"lpop": "./bin/lpop"
+	},
+	"bugs": {
+		"url": "https://github.com/loggipop/lpop/issues"
+	},
+	"description": "A CLI tool for managing environment variables in the system keychain",
 	"files": [
 		"bin/lpop",
 		"scripts/postinstall.js",
 		"README.md",
 		"LICENSE"
-	]
+	],
+	"homepage": "https://github.com/loggipop/lpop#readme",
+	"keywords": [
+		"cli",
+		"environment",
+		"variables",
+		"keychain",
+		"git"
+	],
+	"license": "MIT",
+	"scripts": {
+		"build:binaries": "./scripts/build-binary.sh",
+		"build:sign-notarize": "./scripts/build-sign-notarize.sh",
+		"prepare-packages": "node scripts/prepare-packages.js",
+		"dev": "bun run src/index.ts",
+		"clean": "rm -rf dist/ lpop lpop-*",
+		"lint": "biome check",
+		"lint:fix": "biome check --write",
+		"prepack": "bun run build:binaries && bun run prepare-packages",
+		"postinstall": "node scripts/postinstall.js",
+		"test": "vitest --run",
+		"test:watch": "vitest --watch",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest --coverage"
+	},
+	"type": "module",
+	"dependencies": {
+		"bs58": "^6.0.0"
+	}
 }

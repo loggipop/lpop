@@ -57,11 +57,11 @@
 		"vitest": "^3.2.4"
 	},
 	"optionalDependencies": {
-		"@loggipop/lpop-linux-x64": "0.3.0",
-		"@loggipop/lpop-linux-arm64": "0.3.0",
-		"@loggipop/lpop-darwin-x64": "0.3.0",
-		"@loggipop/lpop-darwin-arm64": "0.3.0",
-		"@loggipop/lpop-windows-x64": "0.3.0"
+		"@loggipop/lpop-linux-x64": "latest",
+		"@loggipop/lpop-linux-arm64": "latest",
+		"@loggipop/lpop-darwin-x64": "latest",
+		"@loggipop/lpop-darwin-arm64": "latest",
+		"@loggipop/lpop-windows-x64": "latest"
 	},
 	"files": [
 		"bin/lpop",

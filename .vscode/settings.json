@@ -8,4 +8,10 @@
   "editor.formatOnPaste": true,
   "editor.formatOnSaveMode": "file",
   "githubIssues.issueBranchTitle": "${issueNumber}-${sanitizedLowercaseIssueTitle}",
+  "[typescript]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
 }

@@ -1,3 +1,4 @@
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
@@ -128,19 +129,31 @@ export const encryptForPublicKey = async (
   // Generate shared secret using KEM
   const [encryptedKey, sharedSecret] = await kem.encap(publicKey);
 
-  // Use shared secret as AES key to encrypt the actual data
-  // For simplicity, we'll use a basic XOR cipher with the shared secret
-  // In production, you'd want to use proper AES encryption
-  const dataBuffer = Buffer.from(data, 'utf8');
-  const ciphertext = Buffer.alloc(dataBuffer.length);
+  // Use AES-256-GCM with the shared secret as key
+  // Derive a 256-bit key from the shared secret
+  const aesKey = sharedSecret.slice(0, 32);
 
-  for (let i = 0; i < dataBuffer.length; i++) {
-    ciphertext[i] = dataBuffer[i] ^ sharedSecret[i % sharedSecret.length];
-  }
+  // Generate a random 12-byte IV for GCM
+  const iv = randomBytes(12);
+
+  // Create cipher with AES-256-GCM
+  const cipher = createCipheriv('aes-256-gcm', aesKey, iv);
+
+  // Encrypt the data
+  const encrypted = Buffer.concat([
+    cipher.update(data, 'utf8'),
+    cipher.final(),
+  ]);
+
+  // Get the authentication tag
+  const authTag = cipher.getAuthTag();
+
+  // Combine IV, authTag, and ciphertext
+  const combined = Buffer.concat([iv, authTag, encrypted]);
 
   return {
     encryptedKey: bs58.encode(encryptedKey),
-    ciphertext: bs58.encode(ciphertext),
+    ciphertext: bs58.encode(combined),
   };
 };
 
@@ -158,15 +171,28 @@ export const decryptWithPrivateKey = async (
   // Recover shared secret using KEM
   const sharedSecret = await kem.decap(encryptedKey, privateKey);
 
-  // Decrypt the ciphertext using the shared secret
-  const ciphertext = bs58.decode(encryptedData.ciphertext);
-  const plaintext = Buffer.alloc(ciphertext.length);
+  // Derive the same AES key from the shared secret
+  const aesKey = sharedSecret.slice(0, 32);
 
-  for (let i = 0; i < ciphertext.length; i++) {
-    plaintext[i] = ciphertext[i] ^ sharedSecret[i % sharedSecret.length];
-  }
+  // Decode and extract components
+  const combined = bs58.decode(encryptedData.ciphertext);
 
-  return plaintext.toString('utf8');
+  // Extract IV (first 12 bytes), authTag (next 16 bytes), and ciphertext (rest)
+  const iv = combined.slice(0, 12);
+  const authTag = combined.slice(12, 28);
+  const ciphertext = combined.slice(28);
+
+  // Create decipher with AES-256-GCM
+  const decipher = createDecipheriv('aes-256-gcm', aesKey, iv);
+  decipher.setAuthTag(authTag);
+
+  // Decrypt the data
+  const decrypted = Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString('utf8');
 };
 
 /**

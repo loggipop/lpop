@@ -1,6 +1,7 @@
 import { existsSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import bs58 from 'bs58';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   decryptWithPrivateKey,
@@ -96,12 +97,10 @@ describe('Quantum Keys', () => {
         recipientKeys.publicKey,
       );
 
-      // Should not throw but will return garbage data
-      const decrypted = await decryptWithPrivateKey(
-        encrypted,
-        wrongKeys.privateKey,
-      );
-      expect(decrypted).not.toBe(originalData);
+      // With AES-GCM, decryption with wrong key should throw authentication error
+      await expect(
+        decryptWithPrivateKey(encrypted, wrongKeys.privateKey),
+      ).rejects.toThrow('Unsupported state or unable to authenticate data');
     });
 
     it('should handle empty string data', async () => {
@@ -145,6 +144,81 @@ describe('Quantum Keys', () => {
       expect(keyPair.privateKey.length).toBeLessThan(4000); // vs 4800 for hex
       expect(keyPair.publicKey.length).toBeGreaterThan(1500);
       expect(keyPair.privateKey.length).toBeGreaterThan(3000);
+    });
+  });
+
+  describe('security improvements', () => {
+    it('should generate unique ciphertexts for the same plaintext (IV randomization)', async () => {
+      const keys = await generatePublicPrivateKeyPair();
+      const originalData = 'sensitive data that should be protected';
+
+      const encrypted1 = await encryptForPublicKey(
+        originalData,
+        keys.publicKey,
+      );
+      const encrypted2 = await encryptForPublicKey(
+        originalData,
+        keys.publicKey,
+      );
+
+      // Same plaintext should produce different ciphertexts due to random IV
+      expect(encrypted1.ciphertext).not.toBe(encrypted2.ciphertext);
+
+      // Both should decrypt to the same value
+      const decrypted1 = await decryptWithPrivateKey(
+        encrypted1,
+        keys.privateKey,
+      );
+      const decrypted2 = await decryptWithPrivateKey(
+        encrypted2,
+        keys.privateKey,
+      );
+      expect(decrypted1).toBe(originalData);
+      expect(decrypted2).toBe(originalData);
+    });
+
+    it('should detect tampered ciphertext', async () => {
+      const keys = await generatePublicPrivateKeyPair();
+      const originalData = 'integrity protected data';
+
+      const encrypted = await encryptForPublicKey(originalData, keys.publicKey);
+
+      // Tamper with the ciphertext
+      const tamperedCiphertext = bs58.decode(encrypted.ciphertext);
+      tamperedCiphertext[tamperedCiphertext.length - 1] ^= 0xff; // Flip last byte
+      encrypted.ciphertext = bs58.encode(tamperedCiphertext);
+
+      // Should fail authentication due to tampered data
+      await expect(
+        decryptWithPrivateKey(encrypted, keys.privateKey),
+      ).rejects.toThrow('Unsupported state or unable to authenticate data');
+    });
+
+    it('should handle special characters and unicode correctly', async () => {
+      const keys = await generatePublicPrivateKeyPair();
+      const originalData = '🔐 Encryption with émojis and spëcial çhars: €£¥';
+
+      const encrypted = await encryptForPublicKey(originalData, keys.publicKey);
+      const decrypted = await decryptWithPrivateKey(encrypted, keys.privateKey);
+
+      expect(decrypted).toBe(originalData);
+    });
+
+    it('should protect against authentication tag manipulation', async () => {
+      const keys = await generatePublicPrivateKeyPair();
+      const originalData = 'auth tag protected';
+
+      const encrypted = await encryptForPublicKey(originalData, keys.publicKey);
+
+      // Tamper with the auth tag (bytes 12-28 in the combined buffer)
+      const tamperedCiphertext = bs58.decode(encrypted.ciphertext);
+      tamperedCiphertext[15] ^= 0x01; // Flip a bit in the auth tag
+      encrypted.ciphertext = bs58.encode(tamperedCiphertext);
+
+      // Should fail authentication
+      await expect(
+        decryptWithPrivateKey(encrypted, keys.privateKey),
+      ).rejects.toThrow('Unsupported state or unable to authenticate data');
     });
   });
 });

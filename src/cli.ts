@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import chalk from 'chalk';
+import clipboardy from 'clipboardy';
 import { Command } from 'commander';
 import packageJson from '../package.json' with { type: 'json' };
+import { formatAskMessage } from './ask-messages.js';
 import {
   asVariable,
   type EnvEntry,
@@ -14,6 +16,7 @@ import {
 } from './env-file-parser.js';
 import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { KeychainManager } from './keychain-manager.js';
+import { getOrCreateDeviceKey } from './quantum-keys.js';
 
 type Options = {
   env?: string;
@@ -132,6 +135,17 @@ export class LpopCLI {
         const mergedOptions = { ...globalOptions, ...options };
         await this.handleEnv(command, mergedOptions);
       });
+
+    this.program
+      .command('ask')
+      .description(
+        'Generate a message to ask colleagues for missing environment variables',
+      )
+      .action(async (options: CommandOptions) => {
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleAsk(mergedOptions);
+      });
   }
 
   private async handleSmartCommand(
@@ -182,6 +196,7 @@ export class LpopCLI {
     options: { env?: string; repo?: string },
   ): Promise<void> {
     const serviceName = await this.getServiceName(options);
+    const repoDisplayName = await this.getRepositoryDisplayName(options);
     const keychain = new KeychainManager(serviceName, options.env);
 
     try {
@@ -215,7 +230,9 @@ export class LpopCLI {
 
       await keychain.setEnvironmentVariables(keychainEntries);
       console.log(
-        chalk.green(`✓ Added ${entries.length} variables to ${serviceName}`),
+        chalk.green(
+          `✓ Added ${entries.length} variables to ${repoDisplayName}`,
+        ),
       );
     } catch (error) {
       console.error(
@@ -237,12 +254,10 @@ export class LpopCLI {
     options: GetOptions,
   ): Promise<void> {
     const serviceName = await this.getServiceName(options);
-    let logMsg = `Getting variables for ${serviceName}`;
-    if (options.repo) {
-      logMsg += ` for repo ${options.repo}`;
-    }
+    const repoDisplayName = await this.getRepositoryDisplayName(options);
+    let logMsg = `Getting variables for ${repoDisplayName}`;
     if (options.env) {
-      logMsg += ` [env: ${options.env}]`;
+      logMsg += ` [${options.env}]`;
     }
     console.log(chalk.blue(logMsg));
     const keychain = new KeychainManager(serviceName, options.env);
@@ -251,7 +266,7 @@ export class LpopCLI {
       const variables = await keychain.getEnvironmentVariables();
 
       if (variables.length === 0) {
-        console.log(chalk.yellow(`No variables found for ${serviceName}`));
+        console.log(chalk.yellow(`No variables found for ${repoDisplayName}`));
         return;
       }
 
@@ -347,17 +362,18 @@ export class LpopCLI {
     options: CommandOptions,
   ): Promise<void> {
     const serviceName = await this.getServiceName(options);
+    const repoDisplayName = await this.getRepositoryDisplayName(options);
     const keychain = new KeychainManager(serviceName, options.env);
 
     try {
       const removed = await keychain.removeEnvironmentVariable(key);
       if (removed) {
         console.log(
-          chalk.green(`✓ Removed variable ${key} from ${serviceName}`),
+          chalk.green(`✓ Removed variable ${key} from ${repoDisplayName}`),
         );
       } else {
         console.log(
-          chalk.yellow(`Variable ${key} not found in ${serviceName}`),
+          chalk.yellow(`Variable ${key} not found in ${repoDisplayName}`),
         );
       }
     } catch (error) {
@@ -372,13 +388,14 @@ export class LpopCLI {
 
   private async handleClear(options: ClearOptions): Promise<void> {
     const serviceName = await this.getServiceName(options);
+    const repoDisplayName = await this.getRepositoryDisplayName(options);
     const keychain = new KeychainManager(serviceName, options.env);
 
     try {
       if (!options.confirm) {
         console.log(
           chalk.yellow(
-            `This will remove ALL environment variables for ${serviceName}`,
+            `This will remove ALL environment variables for ${repoDisplayName}`,
           ),
         );
         console.log(chalk.yellow('Use --confirm to skip this warning'));
@@ -386,7 +403,9 @@ export class LpopCLI {
       }
 
       await keychain.clearAllEnvironmentVariables();
-      console.log(chalk.green(`✓ Cleared all variables for ${serviceName}`));
+      console.log(
+        chalk.green(`✓ Cleared all variables for ${repoDisplayName}`),
+      );
     } catch (error) {
       console.error(
         chalk.red(
@@ -418,6 +437,7 @@ export class LpopCLI {
     options: CommandOptions,
   ): Promise<void> {
     const serviceName = await this.getServiceName(options);
+    const repoDisplayName = await this.getRepositoryDisplayName(options);
     const keychain = new KeychainManager(serviceName, options.env);
 
     try {
@@ -450,7 +470,7 @@ export class LpopCLI {
       const variables = await keychain.getEnvironmentVariables();
 
       if (variables.length === 0) {
-        console.log(chalk.yellow(`No variables found for ${serviceName}`));
+        console.log(chalk.yellow(`No variables found for ${repoDisplayName}`));
         if (actualCommand.length === 0) {
           return;
         }
@@ -458,7 +478,9 @@ export class LpopCLI {
 
       // If no command specified, just show what variables would be loaded
       if (actualCommand.length === 0) {
-        console.log(chalk.blue(`Environment variables for ${serviceName}:`));
+        console.log(
+          chalk.blue(`Environment variables for ${repoDisplayName}:`),
+        );
         for (const { key, value } of variables) {
           console.log(`${key}=${value}`);
         }
@@ -473,7 +495,7 @@ export class LpopCLI {
 
       console.log(
         chalk.blue(
-          `Running "${actualCommand.join(' ')}" with ${variables.length} variables from ${serviceName}`,
+          `Running "${actualCommand.join(' ')}" with ${variables.length} variables from ${repoDisplayName}`,
         ),
       );
 
@@ -502,12 +524,72 @@ export class LpopCLI {
     }
   }
 
+  private async handleAsk(options: CommandOptions): Promise<void> {
+    try {
+      const deviceKey = getOrCreateDeviceKey();
+
+      // Get clean repository display name
+      const repoDisplayName = await this.getRepositoryDisplayName(options);
+
+      console.log(
+        chalk.blue(
+          `Generating ask message for ${repoDisplayName}${options.env ? ` [${options.env}]` : ''}`,
+        ),
+      );
+
+      const message = formatAskMessage(
+        deviceKey.publicKey,
+        repoDisplayName,
+        options.env,
+      );
+
+      await clipboardy.write(message);
+
+      console.log(chalk.green('✓ Message copied to clipboard!'));
+      console.log(chalk.gray('\nGenerated message:'));
+      console.log(chalk.gray('─'.repeat(50)));
+      console.log(message);
+      console.log(chalk.gray('─'.repeat(50)));
+      console.log(
+        chalk.blue(
+          '\nShare this message with your colleague to request environment variables!',
+        ),
+      );
+    } catch (error) {
+      console.error(
+        chalk.red(
+          `Error generating ask message: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+      process.exit(1);
+    }
+  }
+
   private async getServiceName(options: CommandOptions): Promise<string> {
     if (options.repo) {
       return `${getServicePrefix()}${options.repo}`;
     }
 
     return await this.gitResolver.generateServiceNameAsync();
+  }
+
+  private async getRepositoryDisplayName(
+    options: CommandOptions,
+  ): Promise<string> {
+    if (options.repo) {
+      // If repo is manually specified, show it cleanly
+      return options.repo;
+    }
+
+    // Get git information for clean display
+    const gitInfo = await this.gitResolver.getGitInfo();
+    if (gitInfo) {
+      return gitInfo.full_name; // e.g., "loggipop/lpop"
+    }
+
+    // Fallback for non-git directories
+    const dirName = process.cwd().split('/').pop() || 'unknown';
+    return `Local: ${dirName}`;
   }
 
   public async run(): Promise<void> {

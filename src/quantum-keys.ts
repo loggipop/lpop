@@ -8,7 +8,7 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { MlKem768 } from '@dajiaji/mlkem';
+import { ml_kem768 } from '@noble/post-quantum/ml-kem.js';
 import bs58 from 'bs58';
 
 interface DeviceKeyPair {
@@ -39,24 +39,23 @@ function ensureLpopDirectory(): void {
 /**
  * Generates a new ML-KEM768 key pair
  */
-export const generatePublicPrivateKeyPair = async (): Promise<{
+export const generatePublicPrivateKeyPair = (): {
   publicKey: string;
   privateKey: string;
-}> => {
-  const kem = new MlKem768();
-  const [publicKey, privateKey] = await kem.generateKeyPair();
-  const publicKeyBase58 = bs58.encode(publicKey);
-  const privateKeyBase58 = bs58.encode(privateKey);
+} => {
+  const keys = ml_kem768.keygen();
+  const publicKeyBase58 = bs58.encode(keys.publicKey);
+  const privateKeyBase58 = bs58.encode(keys.secretKey);
   return { publicKey: publicKeyBase58, privateKey: privateKeyBase58 };
 };
 
 /**
  * Stores device key pair locally with expiration timestamp
  */
-export const storeDeviceKey = async (keyPair: {
+export const storeDeviceKey = (keyPair: {
   publicKey: string;
   privateKey: string;
-}): Promise<void> => {
+}): void => {
   ensureLpopDirectory();
 
   const now = Date.now();
@@ -100,12 +99,12 @@ export const getStoredDeviceKey = (): DeviceKeyPair | null => {
 /**
  * Gets or generates device key pair, automatically handling expiration
  */
-export const getOrCreateDeviceKey = async (): Promise<DeviceKeyPair> => {
+export const getOrCreateDeviceKey = (): DeviceKeyPair => {
   let deviceKey = getStoredDeviceKey();
 
   if (!deviceKey) {
-    const keyPair = await generatePublicPrivateKeyPair();
-    await storeDeviceKey(keyPair);
+    const keyPair = generatePublicPrivateKeyPair();
+    storeDeviceKey(keyPair);
     deviceKey = getStoredDeviceKey();
 
     if (!deviceKey) {
@@ -119,15 +118,14 @@ export const getOrCreateDeviceKey = async (): Promise<DeviceKeyPair> => {
 /**
  * Encrypts data using ML-KEM with the recipient's public key
  */
-export const encryptForPublicKey = async (
+export const encryptForPublicKey = (
   data: string,
   publicKeyBase58: string,
-): Promise<EncryptedData> => {
-  const kem = new MlKem768();
+): EncryptedData => {
   const publicKey = bs58.decode(publicKeyBase58);
 
   // Generate shared secret using KEM
-  const [encryptedKey, sharedSecret] = await kem.encap(publicKey);
+  const { cipherText, sharedSecret } = ml_kem768.encapsulate(publicKey);
 
   // Use AES-256-GCM with the shared secret as key
   // Derive a 256-bit key from the shared secret
@@ -152,7 +150,7 @@ export const encryptForPublicKey = async (
   const combined = Buffer.concat([iv, authTag, encrypted]);
 
   return {
-    encryptedKey: bs58.encode(encryptedKey),
+    encryptedKey: bs58.encode(cipherText),
     ciphertext: bs58.encode(combined),
   };
 };
@@ -160,16 +158,15 @@ export const encryptForPublicKey = async (
 /**
  * Decrypts data using ML-KEM with the local private key
  */
-export const decryptWithPrivateKey = async (
+export const decryptWithPrivateKey = (
   encryptedData: EncryptedData,
   privateKeyBase58: string,
-): Promise<string> => {
-  const kem = new MlKem768();
+): string => {
   const privateKey = bs58.decode(privateKeyBase58);
   const encryptedKey = bs58.decode(encryptedData.encryptedKey);
 
   // Recover shared secret using KEM
-  const sharedSecret = await kem.decap(encryptedKey, privateKey);
+  const sharedSecret = ml_kem768.decapsulate(encryptedKey, privateKey);
 
   // Derive the same AES key from the shared secret
   const aesKey = sharedSecret.slice(0, 32);

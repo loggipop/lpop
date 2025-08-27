@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import clipboardy from 'clipboardy';
 import {
   afterEach,
   beforeEach,
@@ -9,6 +10,7 @@ import {
   type MockInstance,
   vi,
 } from 'vitest';
+import { formatAskMessage } from '../src/ask-messages';
 import { LpopCLI } from '../src/cli';
 import {
   asComment,
@@ -21,6 +23,7 @@ import {
 } from '../src/env-file-parser';
 import { GitPathResolver, getServicePrefix } from '../src/git-path-resolver';
 import { KeychainManager } from '../src/keychain-manager';
+import { getOrCreateDeviceKey } from '../src/quantum-keys';
 
 // Mock modules
 vi.mock('../src/keychain-manager');
@@ -33,7 +36,25 @@ vi.mock('chalk', () => ({
     green: vi.fn((text: string) => text),
     yellow: vi.fn((text: string) => text),
     red: vi.fn((text: string) => text),
+    gray: vi.fn((text: string) => text),
   },
+}));
+
+// Mock clipboardy
+vi.mock('clipboardy', () => ({
+  default: {
+    write: vi.fn(),
+  },
+}));
+
+// Mock quantum keys
+vi.mock('../src/quantum-keys', () => ({
+  getOrCreateDeviceKey: vi.fn(),
+}));
+
+// Mock ask messages
+vi.mock('../src/ask-messages', () => ({
+  formatAskMessage: vi.fn(),
 }));
 
 // Mock specific functions from env-file-parser instead of the entire module
@@ -957,6 +978,64 @@ describe('LpopCLI', () => {
         }),
         stdio: 'inherit',
       });
+    });
+  });
+
+  describe('ask command', () => {
+    const mockedClipboardy = vi.mocked(clipboardy);
+    const mockedGetOrCreateDeviceKey = vi.mocked(getOrCreateDeviceKey);
+    const mockedFormatAskMessage = vi.mocked(formatAskMessage);
+
+    beforeEach(() => {
+      mockedGetOrCreateDeviceKey.mockReturnValue({
+        publicKey: 'test-public-key-123',
+        privateKey: 'test-private-key-456',
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      mockedFormatAskMessage.mockReturnValue(
+        'Formatted ask message with test-public-key-123',
+      );
+      mockedClipboardy.write.mockResolvedValue();
+    });
+
+    it('should generate ask message and copy to clipboard', async () => {
+      process.argv = ['node', 'lpop', 'ask'];
+      await cli.run();
+
+      expect(mockedGetOrCreateDeviceKey).toHaveBeenCalled();
+      expect(mockedFormatAskMessage).toHaveBeenCalledWith(
+        'test-public-key-123',
+        expect.stringContaining('test-service'),
+        undefined,
+      );
+      expect(mockedClipboardy.write).toHaveBeenCalledWith(
+        'Formatted ask message with test-public-key-123',
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Message copied to clipboard'),
+      );
+    });
+
+    it('should include environment in ask message when specified', async () => {
+      process.argv = ['node', 'lpop', 'ask', '-e', 'production'];
+      await cli.run();
+
+      expect(mockedFormatAskMessage).toHaveBeenCalledWith(
+        'test-public-key-123',
+        expect.stringContaining('test-service'),
+        'production',
+      );
+    });
+
+    it('should handle clipboard write errors gracefully', async () => {
+      mockedClipboardy.write.mockRejectedValue(new Error('Clipboard error'));
+
+      process.argv = ['node', 'lpop', 'ask'];
+
+      // Should exit with error code 1
+      await expect(cli.run()).rejects.toThrow();
     });
   });
 });

@@ -82,3 +82,5 @@ The main command `lpop <input>` intelligently determines the operation:
 ## Development Guidelines
 
 - Use bun to build and install libraries don't use pnpm or npm
+
+- Add dependencies as dev dependencies instead of direct dependencies using bun as this is a package distributed as a compiled cli

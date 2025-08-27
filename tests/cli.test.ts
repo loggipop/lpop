@@ -987,6 +987,19 @@ describe('LpopCLI', () => {
     const mockedFormatAskMessage = vi.mocked(formatAskMessage);
 
     beforeEach(() => {
+      // Mock the git resolver to return a service name containing "test-service"
+      mockGitResolver.generateServiceNameAsync.mockResolvedValue(
+        'github.com/user/test-service',
+      );
+
+      // Mock getGitInfo to return git info with test-service in the name
+      mockGitResolver.getGitInfo.mockResolvedValue({
+        full_name: 'user/test-service',
+        owner: { login: 'user' },
+        name: 'test-service',
+        html_url: 'https://github.com/user/test-service',
+      });
+
       mockedGetOrCreateDeviceKey.mockReturnValue({
         publicKey: 'test-public-key-123',
         privateKey: 'test-private-key-456',

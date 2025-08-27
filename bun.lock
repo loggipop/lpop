@@ -5,8 +5,8 @@
       "name": "lpop",
       "devDependencies": {
         "@biomejs/biome": "2.1.4",
-        "@dajiaji/mlkem": "npm:@jsr/dajiaji__mlkem",
         "@napi-rs/keyring": "^1.1.8",
+        "@noble/post-quantum": "^0.5.1",
         "@types/bun": "latest",
         "@types/node": "^24.2.0",
         "@vitest/coverage-v8": "^3.2.4",
@@ -62,8 +62,6 @@
     "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.1.4", "", { "os": "win32", "cpu": "arm64" }, "sha512-3WRYte7orvyi6TRfIZkDN9Jzoogbv+gSvR+b9VOXUg1We1XrjBg6WljADeVEaKTvOcpVdH0a90TwyOQ6ue4fGw=="],
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.1.4", "", { "os": "win32", "cpu": "x64" }, "sha512-tBc+W7anBPSFXGAoQW+f/+svkpt8/uXfRwDzN1DvnatkRMt16KIYpEi/iw8u9GahJlFv98kgHcIrSsZHZTR0sw=="],
-
-    "@dajiaji/mlkem": ["@jsr/dajiaji__mlkem@2.5.0", "https://npm.jsr.io/~/11/@jsr/dajiaji__mlkem/2.5.0.tgz", {}, "sha512-aBGEEWeKcCgzOfBaIkGHvdh3CJTOVfSMHaYB3bIamU5fWkXQmLyFbqT/gllXZb7dtIMCUdRiZvS2JCQ6LrpmcA=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.8", "", { "os": "aix", "cpu": "ppc64" }, "sha512-urAvrUedIqEiFR3FYSLTWQgLu5tb+m0qZw0NBEasUeo6wuqatkMDaRT+1uABiGXEu5vqgPd7FGE1BhsAIy9QVA=="],
 
@@ -168,6 +166,12 @@
     "@napi-rs/keyring-win32-ia32-msvc": ["@napi-rs/keyring-win32-ia32-msvc@1.1.9", "", { "os": "win32", "cpu": "ia32" }, "sha512-7+7aXz5op6PtOnWYcK1GYXWQlk2zfpdPt9taLqmCCVpk1g4m3Gw1wyKyQxjrg9clHWdNhdWxhFEA0osDxG8/Eg=="],
 
     "@napi-rs/keyring-win32-x64-msvc": ["@napi-rs/keyring-win32-x64-msvc@1.1.9", "", { "os": "win32", "cpu": "x64" }, "sha512-P1wsSrSqDqvcXLL7yiH2RsO3De65wuEQj1ZjV9s1MHfEP5dIdriNYZfFsRBlOsl32GoK3qFzsuH5DTVviGEHSw=="],
+
+    "@noble/curves": ["@noble/curves@2.0.0", "", { "dependencies": { "@noble/hashes": "2.0.0" } }, "sha512-RiwZZeJnsTnhT+/gg2KvITJZhK5oagQrpZo+yQyd3mv3D5NAG2qEeEHpw7IkXRlpkoD45wl2o4ydHAvY9wyEfw=="],
+
+    "@noble/hashes": ["@noble/hashes@2.0.0", "", {}, "sha512-h8VUBlE8R42+XIDO229cgisD287im3kdY6nbNZJFjc6ZvKIXPYXe6Vc/t+kyjFdMFyt5JpapzTsEg8n63w5/lw=="],
+
+    "@noble/post-quantum": ["@noble/post-quantum@0.5.1", "", { "dependencies": { "@noble/curves": "~2.0.0", "@noble/hashes": "~2.0.0" } }, "sha512-OABLmlDXCTy7DQYTgVUKsO+m4VTPedGxZXjK30+DG4Sc1LgRxvT9IcSAKgvta9LYiddYVjBT0/Fjkcbojqcl1g=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 

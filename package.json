@@ -8,8 +8,8 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.1.4",
-		"@dajiaji/mlkem": "npm:@jsr/dajiaji__mlkem",
 		"@napi-rs/keyring": "^1.1.8",
+		"@noble/post-quantum": "^0.5.1",
 		"@types/bun": "latest",
 		"@types/node": "^24.2.0",
 		"@vitest/coverage-v8": "^3.2.4",
@@ -71,5 +71,4 @@
 		"test:coverage": "vitest --coverage"
 	},
 	"type": "module"
-	
 }

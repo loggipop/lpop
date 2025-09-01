@@ -23,7 +23,11 @@ import {
 } from '../src/env-file-parser';
 import { GitPathResolver, getServicePrefix } from '../src/git-path-resolver';
 import { KeychainManager } from '../src/keychain-manager';
-import { getOrCreateDeviceKey } from '../src/quantum-keys';
+import {
+  decryptWithPrivateKey,
+  encryptForPublicKey,
+  getOrCreateDeviceKey,
+} from '../src/quantum-keys';
 
 // Mock modules
 vi.mock('../src/keychain-manager');
@@ -50,6 +54,8 @@ vi.mock('clipboardy', () => ({
 // Mock quantum keys
 vi.mock('../src/quantum-keys', () => ({
   getOrCreateDeviceKey: vi.fn(),
+  encryptForPublicKey: vi.fn(),
+  decryptWithPrivateKey: vi.fn(),
 }));
 
 // Mock ask messages
@@ -1049,6 +1055,358 @@ describe('LpopCLI', () => {
 
       // Should exit with error code 1
       await expect(cli.run()).rejects.toThrow();
+    });
+  });
+
+  describe('give command', () => {
+    const mockedClipboardy = vi.mocked(clipboardy);
+    const mockedEncryptForPublicKey = vi.mocked(encryptForPublicKey);
+
+    beforeEach(() => {
+      mockGitResolver.generateServiceNameAsync.mockResolvedValue(
+        'github.com/user/test-repo',
+      );
+      mockGitResolver.getGitInfo.mockResolvedValue({
+        full_name: 'user/test-repo',
+        owner: { login: 'user' },
+        name: 'test-repo',
+        html_url: 'https://github.com/user/test-repo',
+      });
+
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DB_URL', value: 'postgres://localhost:5432/mydb' },
+      ]);
+
+      mockedEncryptForPublicKey.mockReturnValue({
+        encryptedKey: 'encrypted-key-blob',
+        ciphertext: 'encrypted-data-blob',
+      });
+
+      mockedClipboardy.write.mockResolvedValue();
+    });
+
+    it('should encrypt variables and generate give message', async () => {
+      process.argv = ['node', 'lpop', 'give', 'recipient-public-key-123'];
+      await cli.run();
+
+      expect(mockKeychainManager.getEnvironmentVariables).toHaveBeenCalled();
+      expect(mockedEncryptForPublicKey).toHaveBeenCalledWith(
+        JSON.stringify({
+          API_KEY: 'secret123',
+          DB_URL: 'postgres://localhost:5432/mydb',
+        }),
+        'recipient-public-key-123',
+      );
+
+      const expectedEncryptedBlob = JSON.stringify({
+        encryptedKey: 'encrypted-key-blob',
+        ciphertext: 'encrypted-data-blob',
+      });
+
+      const expectedMessage = `Okey dokey, here's a mystery blob with the new variables. Add them locally with:
+
+lpop receive ${expectedEncryptedBlob}
+
+(copied to clipboard)`;
+
+      expect(mockedClipboardy.write).toHaveBeenCalledWith(expectedMessage);
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Encrypted variables and copied message to clipboard',
+        ),
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Encrypted 2 variables'),
+      );
+    });
+
+    it('should handle no variables found', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
+
+      process.argv = ['node', 'lpop', 'give', 'recipient-public-key-123'];
+      await cli.run();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No variables found'),
+      );
+      expect(mockedEncryptForPublicKey).not.toHaveBeenCalled();
+      expect(mockedClipboardy.write).not.toHaveBeenCalled();
+    });
+
+    it('should use environment option', async () => {
+      process.argv = [
+        'node',
+        'lpop',
+        'give',
+        'recipient-key',
+        '-e',
+        'production',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.any(String),
+        'production',
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[production]'),
+      );
+    });
+
+    it('should use custom repo option', async () => {
+      process.argv = [
+        'node',
+        'lpop',
+        'give',
+        'recipient-key',
+        '-r',
+        'custom/repo',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.stringContaining('custom/repo'),
+        undefined,
+      );
+    });
+
+    it('should handle encryption errors', async () => {
+      mockedEncryptForPublicKey.mockImplementation(() => {
+        throw new Error('Invalid public key format');
+      });
+
+      process.argv = ['node', 'lpop', 'give', 'invalid-key'];
+
+      try {
+        await cli.run();
+      } catch {
+        // Expected to throw due to process.exit mock
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid public key format'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should handle keychain access errors', async () => {
+      mockKeychainManager.getEnvironmentVariables.mockRejectedValue(
+        new Error('Keychain access denied'),
+      );
+
+      process.argv = ['node', 'lpop', 'give', 'recipient-key'];
+
+      try {
+        await cli.run();
+      } catch {
+        // Expected to throw due to process.exit mock
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Keychain access denied'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('receive command', () => {
+    const mockedGetOrCreateDeviceKey = vi.mocked(getOrCreateDeviceKey);
+    const mockedDecryptWithPrivateKey = vi.mocked(decryptWithPrivateKey);
+
+    beforeEach(() => {
+      mockGitResolver.generateServiceNameAsync.mockResolvedValue(
+        'github.com/user/test-repo',
+      );
+      mockGitResolver.getGitInfo.mockResolvedValue({
+        full_name: 'user/test-repo',
+        owner: { login: 'user' },
+        name: 'test-repo',
+        html_url: 'https://github.com/user/test-repo',
+      });
+
+      mockedGetOrCreateDeviceKey.mockReturnValue({
+        publicKey: 'my-public-key-123',
+        privateKey: 'my-private-key-456',
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      mockedDecryptWithPrivateKey.mockReturnValue(
+        JSON.stringify({
+          API_KEY: 'secret123',
+          DB_URL: 'postgres://localhost:5432/mydb',
+          NODE_ENV: 'production',
+        }),
+      );
+
+      mockKeychainManager.setEnvironmentVariables.mockResolvedValue();
+    });
+
+    it('should decrypt and store received variables', async () => {
+      const encryptedData = JSON.stringify({
+        encryptedKey: 'encrypted-key-blob',
+        ciphertext: 'encrypted-data-blob',
+      });
+
+      process.argv = ['node', 'lpop', 'receive', encryptedData];
+      await cli.run();
+
+      expect(mockedGetOrCreateDeviceKey).toHaveBeenCalled();
+      expect(mockedDecryptWithPrivateKey).toHaveBeenCalledWith(
+        {
+          encryptedKey: 'encrypted-key-blob',
+          ciphertext: 'encrypted-data-blob',
+        },
+        'my-private-key-456',
+      );
+
+      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith([
+        { key: 'API_KEY', value: 'secret123' },
+        { key: 'DB_URL', value: 'postgres://localhost:5432/mydb' },
+        { key: 'NODE_ENV', value: 'production' },
+      ]);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Received and stored 3 variables'),
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Received variables:'),
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith('  API_KEY');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  DB_URL');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  NODE_ENV');
+    });
+
+    it('should use environment option', async () => {
+      const encryptedData = JSON.stringify({
+        encryptedKey: 'encrypted-key-blob',
+        ciphertext: 'encrypted-data-blob',
+      });
+
+      process.argv = [
+        'node',
+        'lpop',
+        'receive',
+        encryptedData,
+        '-e',
+        'staging',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.any(String),
+        'staging',
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[staging]'),
+      );
+    });
+
+    it('should use custom repo option', async () => {
+      const encryptedData = JSON.stringify({
+        encryptedKey: 'test-key',
+        ciphertext: 'test-data',
+      });
+
+      process.argv = [
+        'node',
+        'lpop',
+        'receive',
+        encryptedData,
+        '-r',
+        'custom/repo',
+      ];
+      await cli.run();
+
+      expect(MockedKeychainManager).toHaveBeenCalledWith(
+        expect.stringContaining('custom/repo'),
+        undefined,
+      );
+    });
+
+    it('should handle invalid JSON input', async () => {
+      process.argv = ['node', 'lpop', 'receive', 'invalid-json-data'];
+
+      try {
+        await cli.run();
+      } catch {
+        // Expected to throw due to process.exit mock
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error receiving variables'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should handle decryption errors', async () => {
+      mockedDecryptWithPrivateKey.mockImplementation(() => {
+        throw new Error('Decryption failed - wrong key or corrupted data');
+      });
+
+      const encryptedData = JSON.stringify({
+        encryptedKey: 'wrong-key-blob',
+        ciphertext: 'encrypted-data-blob',
+      });
+
+      process.argv = ['node', 'lpop', 'receive', encryptedData];
+
+      try {
+        await cli.run();
+      } catch {
+        // Expected to throw due to process.exit mock
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Decryption failed - wrong key or corrupted data',
+        ),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should handle keychain storage errors', async () => {
+      mockKeychainManager.setEnvironmentVariables.mockRejectedValue(
+        new Error('Keychain write failed'),
+      );
+
+      const encryptedData = JSON.stringify({
+        encryptedKey: 'encrypted-key-blob',
+        ciphertext: 'encrypted-data-blob',
+      });
+
+      process.argv = ['node', 'lpop', 'receive', encryptedData];
+
+      try {
+        await cli.run();
+      } catch {
+        // Expected to throw due to process.exit mock
+      }
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Keychain write failed'),
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should handle empty variables object', async () => {
+      mockedDecryptWithPrivateKey.mockReturnValue(JSON.stringify({}));
+
+      const encryptedData = JSON.stringify({
+        encryptedKey: 'encrypted-key-blob',
+        ciphertext: 'encrypted-data-blob',
+      });
+
+      process.argv = ['node', 'lpop', 'receive', encryptedData];
+      await cli.run();
+
+      expect(mockKeychainManager.setEnvironmentVariables).toHaveBeenCalledWith(
+        [],
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Received and stored 0 variables'),
+      );
     });
   });
 });

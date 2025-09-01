@@ -16,7 +16,11 @@ import {
 } from './env-file-parser.js';
 import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { KeychainManager } from './keychain-manager.js';
-import { getOrCreateDeviceKey } from './quantum-keys.js';
+import {
+  decryptWithPrivateKey,
+  encryptForPublicKey,
+  getOrCreateDeviceKey,
+} from './quantum-keys.js';
 
 type Options = {
   env?: string;
@@ -145,6 +149,24 @@ export class LpopCLI {
         const globalOptions = this.program.opts();
         const mergedOptions = { ...globalOptions, ...options };
         await this.handleAsk(mergedOptions);
+      });
+
+    this.program
+      .command('give <publicKey>')
+      .description('Encrypt environment variables for sharing with a colleague')
+      .action(async (publicKey: string, options: CommandOptions) => {
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleGive(publicKey, mergedOptions);
+      });
+
+    this.program
+      .command('receive <encryptedData>')
+      .description('Receive and decrypt shared environment variables')
+      .action(async (encryptedData: string, options: CommandOptions) => {
+        const globalOptions = this.program.opts();
+        const mergedOptions = { ...globalOptions, ...options };
+        await this.handleReceive(encryptedData, mergedOptions);
       });
   }
 
@@ -559,6 +581,133 @@ export class LpopCLI {
       console.error(
         chalk.red(
           `Error generating ask message: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+      process.exit(1);
+    }
+  }
+
+  private async handleGive(
+    publicKey: string,
+    options: CommandOptions,
+  ): Promise<void> {
+    try {
+      const serviceName = await this.getServiceName(options);
+      const repoDisplayName = await this.getRepositoryDisplayName(options);
+      const keychain = new KeychainManager(serviceName, options.env);
+
+      console.log(
+        chalk.blue(
+          `Encrypting variables for ${repoDisplayName}${options.env ? ` [${options.env}]` : ''}`,
+        ),
+      );
+
+      // Get all variables for the repository/environment
+      const variables = await keychain.getEnvironmentVariables();
+
+      if (variables.length === 0) {
+        console.log(chalk.yellow(`No variables found for ${repoDisplayName}`));
+        return;
+      }
+
+      // Convert to object format for JSON serialization
+      const variablesObject = variables.reduce(
+        (obj, { key, value }) => {
+          obj[key] = value;
+          return obj;
+        },
+        {} as Record<string, string>,
+      );
+
+      // Encrypt the variables JSON against the provided public key
+      const variablesJson = JSON.stringify(variablesObject);
+      const encrypted = encryptForPublicKey(variablesJson, publicKey);
+
+      // Create the encrypted blob to share
+      const encryptedBlob = JSON.stringify(encrypted);
+
+      // Create the friendly message to send back
+      const message = `Okey dokey, here's a mystery blob with the new variables. Add them locally with:
+
+lpop receive ${encryptedBlob}
+
+(copied to clipboard)`;
+
+      await clipboardy.write(message);
+
+      console.log(
+        chalk.green('✓ Encrypted variables and copied message to clipboard!'),
+      );
+      console.log(chalk.blue(`✓ Encrypted ${variables.length} variables`));
+      console.log(chalk.gray('\nMessage to send back:'));
+      console.log(chalk.gray('─'.repeat(50)));
+      console.log(message);
+      console.log(chalk.gray('─'.repeat(50)));
+    } catch (error) {
+      console.error(
+        chalk.red(
+          `Error encrypting variables: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+      process.exit(1);
+    }
+  }
+
+  private async handleReceive(
+    encryptedData: string,
+    options: CommandOptions,
+  ): Promise<void> {
+    try {
+      const serviceName = await this.getServiceName(options);
+      const repoDisplayName = await this.getRepositoryDisplayName(options);
+      const keychain = new KeychainManager(serviceName, options.env);
+
+      console.log(
+        chalk.blue(
+          `Decrypting variables for ${repoDisplayName}${options.env ? ` [${options.env}]` : ''}`,
+        ),
+      );
+
+      // Get or create device key to decrypt with our private key
+      const deviceKey = getOrCreateDeviceKey();
+
+      // Parse the encrypted data
+      const encrypted = JSON.parse(encryptedData);
+
+      // Decrypt the variables
+      const decryptedJson = decryptWithPrivateKey(
+        encrypted,
+        deviceKey.privateKey,
+      );
+      const variablesObject = JSON.parse(decryptedJson) as Record<
+        string,
+        string
+      >;
+
+      // Convert to keychain format
+      const variables = Object.entries(variablesObject).map(([key, value]) => ({
+        key,
+        value,
+      }));
+
+      // Store in keychain
+      await keychain.setEnvironmentVariables(variables);
+
+      console.log(
+        chalk.green(
+          `✓ Received and stored ${variables.length} variables for ${repoDisplayName}`,
+        ),
+      );
+
+      // Show what was received
+      console.log(chalk.blue('\nReceived variables:'));
+      for (const { key } of variables) {
+        console.log(chalk.gray(`  ${key}`));
+      }
+    } catch (error) {
+      console.error(
+        chalk.red(
+          `Error receiving variables: ${error instanceof Error ? error.message : String(error)}`,
         ),
       );
       process.exit(1);

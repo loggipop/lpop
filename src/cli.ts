@@ -289,7 +289,6 @@ export class LpopCLI {
 
       if (variables.length === 0) {
         console.log(chalk.yellow(`No variables found for ${repoDisplayName}`));
-        return;
       }
 
       if (key) {
@@ -567,7 +566,6 @@ export class LpopCLI {
 
       await clipboardy.write(message);
 
-      console.log(chalk.green('✓ Message copied to clipboard!'));
       console.log(chalk.gray('\nGenerated message:'));
       console.log(chalk.gray('─'.repeat(50)));
       console.log(message);
@@ -577,6 +575,7 @@ export class LpopCLI {
           '\nShare this message with your colleague to request environment variables!',
         ),
       );
+      console.log(chalk.green('✓ Message copied to clipboard!'));
     } catch (error) {
       console.error(
         chalk.red(
@@ -629,7 +628,7 @@ export class LpopCLI {
       // Create the friendly message to send back
       const message = `Okey dokey, here's a mystery blob with the new variables. Add them locally with:
 
-lpop receive ${encryptedBlob}
+npx @loggipop/lpop receive ${encryptedBlob}
 
 (copied to clipboard)`;
 
@@ -745,3 +744,4 @@ lpop receive ${encryptedBlob}
     await this.program.parseAsync(process.argv);
   }
 }
+// test comment

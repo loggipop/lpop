@@ -48,5 +48,5 @@ export const formatAskMessage = (
 
 Repository: ${serviceName}${envSuffix}
 
-lpop give ${publicKey}`;
+npx @loggipop/lpop give ${publicKey}`;
 };

@@ -744,4 +744,3 @@ npx @loggipop/lpop receive ${encryptedBlob}
     await this.program.parseAsync(process.argv);
   }
 }
-// test comment

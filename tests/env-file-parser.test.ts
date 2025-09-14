@@ -12,7 +12,7 @@ import {
   parseFile,
   parseVariable,
   toKeyValuePairs,
-  writeFile as writeEnvFile,
+  writeEnvFile,
 } from '../src/env-file-parser';
 
 describe('EnvFileParser', () => {

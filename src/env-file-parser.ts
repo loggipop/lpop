@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs';
-import { writeFile as fsWriteFile, readFile } from 'node:fs/promises';
+import { exists, readFile, writeFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import type { KeychainEntry } from './keychain-manager.js';
 
@@ -46,7 +45,7 @@ export function asVariable(
 }
 
 export async function parseFile(filePath: string): Promise<ParsedEnvFile> {
-  if (!existsSync(filePath)) {
+  if (!(await exists(filePath))) {
     throw new Error(`File not found: ${filePath}`);
   }
 
@@ -148,12 +147,12 @@ export function parseContent(content: string): ParsedEnvFile {
   return { entries, ignoredCount };
 }
 
-export async function writeFile(
+export async function writeEnvFile(
   filePath: string,
   entries: EnvEntry[],
 ): Promise<void> {
   const content = generateContent(entries);
-  await fsWriteFile(filePath, content, 'utf-8');
+  await writeFile(filePath, content, 'utf-8');
 }
 
 export function generateContent(entries: EnvEntry[]): string {

@@ -1,11 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { exists, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ml_kem768 } from '@noble/post-quantum/ml-kem.js';
@@ -30,11 +24,11 @@ const DEVICE_KEY_FILE = join(LPOP_DIR, 'device-key.json');
 /**
  * Ensures the .lpop directory exists in the user's home directory
  */
-function ensureLpopDirectory(): void {
-  if (!existsSync(LPOP_DIR)) {
-    mkdirSync(LPOP_DIR, { recursive: true });
+const ensureLpopDirectory = async (): Promise<void> => {
+  if (!(await exists(LPOP_DIR))) {
+    mkdir(LPOP_DIR, { recursive: true });
   }
-}
+};
 
 /**
  * Generates a new ML-KEM768 key pair
@@ -52,11 +46,11 @@ export const generatePublicPrivateKeyPair = (): {
 /**
  * Stores device key pair locally with expiration timestamp
  */
-export const storeDeviceKey = (keyPair: {
+export const storeDeviceKey = async (keyPair: {
   publicKey: string;
   privateKey: string;
-}): void => {
-  ensureLpopDirectory();
+}) => {
+  await ensureLpopDirectory();
 
   const now = Date.now();
   const deviceKey: DeviceKeyPair = {
@@ -65,33 +59,33 @@ export const storeDeviceKey = (keyPair: {
     expiresAt: now + KEY_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
   };
 
-  writeFileSync(DEVICE_KEY_FILE, JSON.stringify(deviceKey, null, 2), 'utf8');
+  await writeFile(DEVICE_KEY_FILE, JSON.stringify(deviceKey, null, 2), 'utf8');
 };
 
 /**
  * Retrieves stored device key pair if it exists and hasn't expired
  */
-export const getStoredDeviceKey = (): DeviceKeyPair | null => {
-  if (!existsSync(DEVICE_KEY_FILE)) {
+export const getStoredDeviceKey = async (): Promise<DeviceKeyPair | null> => {
+  if (!(await exists(DEVICE_KEY_FILE))) {
     return null;
   }
 
   try {
     const keyData = JSON.parse(
-      readFileSync(DEVICE_KEY_FILE, 'utf8'),
+      await readFile(DEVICE_KEY_FILE, 'utf8'),
     ) as DeviceKeyPair;
 
     // Check if key has expired
     if (Date.now() > keyData.expiresAt) {
       // Remove expired key
-      unlinkSync(DEVICE_KEY_FILE);
+      await unlink(DEVICE_KEY_FILE);
       return null;
     }
 
     return keyData;
   } catch {
     // If file is corrupted, remove it
-    unlinkSync(DEVICE_KEY_FILE);
+    await unlink(DEVICE_KEY_FILE);
     return null;
   }
 };
@@ -99,13 +93,13 @@ export const getStoredDeviceKey = (): DeviceKeyPair | null => {
 /**
  * Gets or generates device key pair, automatically handling expiration
  */
-export const getOrCreateDeviceKey = (): DeviceKeyPair => {
-  let deviceKey = getStoredDeviceKey();
+export const getOrCreateDeviceKey = async (): Promise<DeviceKeyPair> => {
+  let deviceKey = await getStoredDeviceKey();
 
   if (!deviceKey) {
     const keyPair = generatePublicPrivateKeyPair();
-    storeDeviceKey(keyPair);
-    deviceKey = getStoredDeviceKey();
+    await storeDeviceKey(keyPair);
+    deviceKey = await getStoredDeviceKey();
 
     if (!deviceKey) {
       throw new Error('Failed to store or retrieve device key');
@@ -195,20 +189,20 @@ export const decryptWithPrivateKey = (
 /**
  * Removes expired or invalid device keys
  */
-export const cleanupExpiredKeys = (): boolean => {
-  const deviceKey = getStoredDeviceKey();
+export const cleanupExpiredKeys = async (): Promise<boolean> => {
+  const deviceKey = await getStoredDeviceKey();
   return deviceKey === null; // Returns true if key was removed/expired
 };
 
 /**
  * Gets device key status information
  */
-export const getDeviceKeyStatus = (): {
+export const getDeviceKeyStatus = async (): Promise<{
   exists: boolean;
   expiresAt?: number;
   daysUntilExpiry?: number;
-} => {
-  const deviceKey = getStoredDeviceKey();
+}> => {
+  const deviceKey = await getStoredDeviceKey();
 
   if (!deviceKey) {
     return { exists: false };

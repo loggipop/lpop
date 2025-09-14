@@ -6,11 +6,13 @@
 import { mock } from 'bun:test';
 
 // Mock @napi-rs/keyring
-export const mockEntry = {
+export const mockEntryInstance = {
   setPassword: mock(),
   getPassword: mock(),
   deletePassword: mock(),
 };
+
+export const mockEntry = mock(() => mockEntryInstance);
 
 export const mockFindCredentials = mock();
 

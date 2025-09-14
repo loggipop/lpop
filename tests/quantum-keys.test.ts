@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { existsSync, rmSync } from 'node:fs';
+import { exists, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import bs58 from 'bs58';
@@ -12,10 +12,10 @@ import {
 const LPOP_DIR = join(homedir(), '.lpop');
 
 describe('Quantum Keys', () => {
-  afterEach(() => {
+  afterEach(async () => {
     // Clean up any keys created during testing
-    if (existsSync(LPOP_DIR)) {
-      rmSync(LPOP_DIR, { recursive: true, force: true });
+    if (await exists(LPOP_DIR)) {
+      await rm(LPOP_DIR, { recursive: true, force: true });
     }
   });
 

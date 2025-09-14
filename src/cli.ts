@@ -12,7 +12,7 @@ import {
   parseFile,
   parseVariable,
   type VariableEntry,
-  writeFile,
+  writeEnvFile,
 } from './env-file-parser.js';
 import { GitPathResolver, getServicePrefix } from './git-path-resolver.js';
 import { KeychainManager } from './keychain-manager.js';
@@ -301,7 +301,7 @@ export class LpopCLI {
               variable.key,
               variable.value,
             );
-            await writeFile(options.output, [variableEntry]);
+            await writeEnvFile(options.output, [variableEntry]);
             console.log(
               chalk.green(`✓ Variable ${key} written to ${options.output}`),
             );
@@ -322,7 +322,7 @@ export class LpopCLI {
             envExamplePath,
             variables,
           );
-          await writeFile(outputFile, mergedEntries);
+          await writeEnvFile(outputFile, mergedEntries);
           let varsWritten = 0;
           let emptyVarsWritten = 0;
 
@@ -352,7 +352,7 @@ export class LpopCLI {
           const variableEntries: VariableEntry[] = variables.map((v) =>
             asVariable(v.key, v.value),
           );
-          await writeFile(outputFile, variableEntries);
+          await writeEnvFile(outputFile, variableEntries);
           console.log(
             chalk.green(
               `✓ ${variables.length} variables written to ${outputFile}`,
@@ -547,7 +547,7 @@ export class LpopCLI {
 
   private async handleAsk(options: CommandOptions): Promise<void> {
     try {
-      const deviceKey = getOrCreateDeviceKey();
+      const deviceKey = await getOrCreateDeviceKey();
 
       // Get clean repository display name
       const repoDisplayName = await this.getRepositoryDisplayName(options);
@@ -668,7 +668,7 @@ npx @loggipop/lpop receive ${encryptedBlob}
       );
 
       // Get or create device key to decrypt with our private key
-      const deviceKey = getOrCreateDeviceKey();
+      const deviceKey = await getOrCreateDeviceKey();
 
       // Parse the encrypted data
       const encrypted = JSON.parse(encryptedData);

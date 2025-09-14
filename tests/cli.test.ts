@@ -115,6 +115,7 @@ describe('LpopCLI', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetAllMocks();
 
     // Setup console mocks
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -123,29 +124,35 @@ describe('LpopCLI', () => {
       throw new Error('process.exit called');
     });
 
-    // Setup KeychainManager mock
+    // Setup KeychainManager mock with default resolved values
     mockKeychainManager = {
-      setEnvironmentVariables: vi.fn(),
-      getEnvironmentVariables: vi.fn(),
-      removeEnvironmentVariable: vi.fn(),
-      clearAllEnvironmentVariables: vi.fn(),
-      setPassword: vi.fn(),
-      getPassword: vi.fn(),
-      deletePassword: vi.fn(),
-      findServiceCredentials: vi.fn(),
-      updateEnvironmentVariable: vi.fn(),
+      setEnvironmentVariables: vi.fn().mockResolvedValue(undefined),
+      getEnvironmentVariables: vi.fn().mockResolvedValue([]),
+      removeEnvironmentVariable: vi.fn().mockResolvedValue(true),
+      clearAllEnvironmentVariables: vi.fn().mockResolvedValue(undefined),
+      setPassword: vi.fn().mockResolvedValue(undefined),
+      getPassword: vi.fn().mockResolvedValue(''),
+      deletePassword: vi.fn().mockResolvedValue(true),
+      findServiceCredentials: vi.fn().mockResolvedValue([]),
+      updateEnvironmentVariable: vi.fn().mockResolvedValue(undefined),
     };
     MockedKeychainManager.mockImplementation(
       () =>
         mockKeychainManager as unknown as InstanceType<typeof KeychainManager>,
     );
 
-    // Setup GitPathResolver mock
+    // Setup GitPathResolver mock with default resolved values
     mockGitResolver = {
       generateServiceNameAsync: vi.fn().mockResolvedValue('lpop://user/repo'),
-      isGitRepository: vi.fn(),
-      getRemoteUrl: vi.fn(),
-      getGitInfo: vi.fn(),
+      isGitRepository: vi.fn().mockReturnValue(true),
+      getRemoteUrl: vi
+        .fn()
+        .mockResolvedValue('https://github.com/user/repo.git'),
+      getGitInfo: vi.fn().mockResolvedValue({
+        owner: 'user',
+        name: 'repo',
+        full_name: 'user/repo',
+      }),
     };
     MockedGitPathResolver.mockImplementation(
       () => mockGitResolver as unknown as InstanceType<typeof GitPathResolver>,
@@ -272,6 +279,7 @@ describe('LpopCLI', () => {
 
     it('should add single variable', async () => {
       mockedExistsSync.mockReturnValue(false);
+      mockedParseVariable.mockReturnValue(asVariable('API_KEY', 'secret123'));
 
       process.argv = ['node', 'lpop', 'add', 'API_KEY=secret123'];
       await cli.run();
@@ -478,6 +486,11 @@ describe('LpopCLI', () => {
   describe('Service Name Resolution', () => {
     it('should use git resolver when no repo specified', async () => {
       mockKeychainManager.getEnvironmentVariables.mockResolvedValue([]);
+      mockGitResolver.getGitInfo.mockResolvedValue({
+        owner: 'user',
+        name: 'repo',
+        full_name: 'user/repo',
+      });
 
       process.argv = ['node', 'lpop', 'get'];
       await cli.run();
@@ -1106,7 +1119,7 @@ describe('LpopCLI', () => {
 
       const expectedMessage = `Okey dokey, here's a mystery blob with the new variables. Add them locally with:
 
-lpop receive ${expectedEncryptedBlob}
+npx @loggipop/lpop receive ${expectedEncryptedBlob}
 
 (copied to clipboard)`;
 
@@ -1240,7 +1253,7 @@ lpop receive ${expectedEncryptedBlob}
         }),
       );
 
-      mockKeychainManager.setEnvironmentVariables.mockResolvedValue();
+      mockKeychainManager.setEnvironmentVariables.mockResolvedValue(undefined);
     });
 
     it('should decrypt and store received variables', async () => {

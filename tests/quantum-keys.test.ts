@@ -1,8 +1,8 @@
+import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import bs58 from 'bs58';
-import { afterEach, describe, expect, it } from 'vitest';
 import {
   decryptWithPrivateKey,
   encryptForPublicKey,
@@ -20,7 +20,7 @@ describe('Quantum Keys', () => {
   });
 
   describe('generatePublicPrivateKeyPair', () => {
-    it('should generate a valid ML-KEM key pair with base58 encoding', () => {
+    test('should generate a valid ML-KEM key pair with base58 encoding', () => {
       const keyPair = generatePublicPrivateKeyPair();
 
       expect(keyPair).toHaveProperty('publicKey');
@@ -43,7 +43,7 @@ describe('Quantum Keys', () => {
       );
     });
 
-    it('should generate different key pairs on each call', () => {
+    test('should generate different key pairs on each call', () => {
       const keyPair1 = generatePublicPrivateKeyPair();
       const keyPair2 = generatePublicPrivateKeyPair();
 
@@ -53,7 +53,7 @@ describe('Quantum Keys', () => {
   });
 
   describe('encrypt and decrypt', () => {
-    it('should encrypt and decrypt data successfully', () => {
+    test('should encrypt and decrypt data successfully', () => {
       const recipientKeys = generatePublicPrivateKeyPair();
       const originalData = JSON.stringify({
         DATABASE_URL: 'postgres://user:pass@localhost:5432/mydb',
@@ -86,7 +86,7 @@ describe('Quantum Keys', () => {
       expect(decrypted).toBe(originalData);
     });
 
-    it('should fail to decrypt with wrong private key', () => {
+    test('should fail to decrypt with wrong private key', () => {
       const recipientKeys = generatePublicPrivateKeyPair();
       const wrongKeys = generatePublicPrivateKeyPair();
       const originalData = 'secret message';
@@ -102,7 +102,7 @@ describe('Quantum Keys', () => {
       }).toThrow('Unsupported state or unable to authenticate data');
     });
 
-    it('should handle empty string data', () => {
+    test('should handle empty string data', () => {
       const keys = generatePublicPrivateKeyPair();
       const originalData = '';
 
@@ -112,7 +112,7 @@ describe('Quantum Keys', () => {
       expect(decrypted).toBe(originalData);
     });
 
-    it('should handle large data', () => {
+    test('should handle large data', () => {
       const keys = generatePublicPrivateKeyPair();
       const originalData = 'a'.repeat(10000); // 10KB of data
 
@@ -124,7 +124,7 @@ describe('Quantum Keys', () => {
   });
 
   describe('base58 encoding validation', () => {
-    it('should only contain valid base58 characters', () => {
+    test('should only contain valid base58 characters', () => {
       const keyPair = generatePublicPrivateKeyPair();
 
       // Base58 alphabet (Bitcoin): 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
@@ -135,7 +135,7 @@ describe('Quantum Keys', () => {
       expect(keyPair.privateKey).toMatch(base58Regex);
     });
 
-    it('should be significantly shorter than hex encoding', () => {
+    test('should be significantly shorter than hex encoding', () => {
       const keyPair = generatePublicPrivateKeyPair();
 
       // Base58 should be ~32% shorter than hex for ML-KEM keys
@@ -147,7 +147,7 @@ describe('Quantum Keys', () => {
   });
 
   describe('security improvements', () => {
-    it('should generate unique ciphertexts for the same plaintext (IV randomization)', () => {
+    test('should generate unique ciphertexts for the same plaintext (IV randomization)', () => {
       const keys = generatePublicPrivateKeyPair();
       const originalData = 'sensitive data that should be protected';
 
@@ -164,7 +164,7 @@ describe('Quantum Keys', () => {
       expect(decrypted2).toBe(originalData);
     });
 
-    it('should detect tampered ciphertext', () => {
+    test('should detect tampered ciphertext', () => {
       const keys = generatePublicPrivateKeyPair();
       const originalData = 'integrity protected data';
 
@@ -181,7 +181,7 @@ describe('Quantum Keys', () => {
       }).toThrow('Unsupported state or unable to authenticate data');
     });
 
-    it('should handle special characters and unicode correctly', () => {
+    test('should handle special characters and unicode correctly', () => {
       const keys = generatePublicPrivateKeyPair();
       const originalData = '🔐 Encryption with émojis and spëcial çhars: €£¥';
 
@@ -191,7 +191,7 @@ describe('Quantum Keys', () => {
       expect(decrypted).toBe(originalData);
     });
 
-    it('should protect against authentication tag manipulation', () => {
+    test('should protect against authentication tag manipulation', () => {
       const keys = generatePublicPrivateKeyPair();
       const originalData = 'auth tag protected';
 

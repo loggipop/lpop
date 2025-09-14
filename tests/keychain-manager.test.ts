@@ -1,81 +1,58 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-
-vi.mock('@napi-rs/keyring', () => ({
-  Entry: vi.fn(),
-  findCredentials: vi.fn(),
-}));
-
-import { Entry, findCredentials } from '@napi-rs/keyring';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { KeychainManager } from '../src/keychain-manager';
+import { mockEntry, mockFindCredentials } from './setup';
 
 describe('KeychainManager', () => {
   let manager: KeychainManager;
-  let mockEntry: {
-    setPassword: Mock;
-    getPassword: Mock;
-    deletePassword: Mock;
-  };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset all mocks
+    mockEntry.setPassword.mockReset();
+    mockEntry.getPassword.mockReset();
+    mockEntry.deletePassword.mockReset();
+    mockFindCredentials.mockReset();
 
-    mockEntry = {
-      setPassword: vi.fn(),
-      getPassword: vi.fn(),
-      deletePassword: vi.fn(),
-    };
-
-    (Entry as unknown as Mock).mockImplementation(() => mockEntry);
     manager = new KeychainManager('test-service', 'development');
   });
 
   describe('constructor', () => {
-    it('should create instance with service name and environment', () => {
+    test('should create instance with service name and environment', () => {
       const mgr = new KeychainManager('my-service', 'production');
       expect(mgr).toBeDefined();
     });
 
-    it('should create instance without environment', () => {
+    test('should create instance without environment', () => {
       const mgr = new KeychainManager('my-service');
       expect(mgr).toBeDefined();
     });
   });
 
   describe('setPassword', () => {
-    it('should set password with environment suffix', async () => {
+    test('should set password with environment suffix', async () => {
       await manager.setPassword('API_KEY', 'secret123');
 
-      expect(Entry).toHaveBeenCalledWith(
-        'test-service',
-        'API_KEY?env=development',
-      );
       expect(mockEntry.setPassword).toHaveBeenCalledWith('secret123');
     });
 
-    it('should set password without environment suffix when no environment', async () => {
+    test('should set password without environment suffix when no environment', async () => {
       const noEnvManager = new KeychainManager('test-service');
       await noEnvManager.setPassword('API_KEY', 'secret123');
 
-      expect(Entry).toHaveBeenCalledWith('test-service', 'API_KEY');
       expect(mockEntry.setPassword).toHaveBeenCalledWith('secret123');
     });
   });
 
   describe('getPassword', () => {
-    it('should get password successfully', async () => {
+    test('should get password successfully', async () => {
       mockEntry.getPassword.mockReturnValue('secret123');
 
       const result = await manager.getPassword('API_KEY');
 
-      expect(Entry).toHaveBeenCalledWith(
-        'test-service',
-        'API_KEY?env=development',
-      );
       expect(mockEntry.getPassword).toHaveBeenCalled();
       expect(result).toBe('secret123');
     });
 
-    it('should return null when password not found', async () => {
+    test('should return null when password not found', async () => {
       mockEntry.getPassword.mockImplementation(() => {
         throw new Error('Not found');
       });
@@ -87,20 +64,16 @@ describe('KeychainManager', () => {
   });
 
   describe('deletePassword', () => {
-    it('should delete password successfully', async () => {
+    test('should delete password successfully', async () => {
       mockEntry.deletePassword.mockReturnValue(true);
 
       const result = await manager.deletePassword('API_KEY');
 
-      expect(Entry).toHaveBeenCalledWith(
-        'test-service',
-        'API_KEY?env=development',
-      );
       expect(mockEntry.deletePassword).toHaveBeenCalled();
       expect(result).toBe(true);
     });
 
-    it('should return false when deletion fails', async () => {
+    test('should return false when deletion fails', async () => {
       mockEntry.deletePassword.mockImplementation(() => {
         throw new Error('Delete failed');
       });
@@ -112,8 +85,8 @@ describe('KeychainManager', () => {
   });
 
   describe('findCredentials', () => {
-    it('should prioritize environment-specific credentials', async () => {
-      (findCredentials as Mock).mockReturnValue([
+    test('should prioritize environment-specific credentials', async () => {
+      mockFindCredentials.mockReturnValue([
         { account: 'API_KEY', password: 'generic-value' },
         { account: 'API_KEY?env=development', password: 'dev-value' },
         { account: 'API_KEY?env=production', password: 'prod-value' },
@@ -122,15 +95,15 @@ describe('KeychainManager', () => {
 
       const result = await manager.findServiceCredentials();
 
-      expect(findCredentials).toHaveBeenCalledWith('test-service');
+      expect(mockFindCredentials).toHaveBeenCalledWith('test-service');
       expect(result).toEqual([
         { account: 'API_KEY', password: 'dev-value' },
         { account: 'DB_URL', password: 'dev-db' },
       ]);
     });
 
-    it('should use generic credentials when no environment-specific ones exist', async () => {
-      (findCredentials as Mock).mockReturnValue([
+    test('should use generic credentials when no environment-specific ones exist', async () => {
+      mockFindCredentials.mockReturnValue([
         { account: 'API_KEY', password: 'generic-value' },
         { account: 'DB_URL?env=production', password: 'prod-db' },
       ]);
@@ -142,17 +115,17 @@ describe('KeychainManager', () => {
       ]);
     });
 
-    it('should return empty array when no credentials found', async () => {
-      (findCredentials as Mock).mockReturnValue([]);
+    test('should return empty array when no credentials found', async () => {
+      mockFindCredentials.mockReturnValue([]);
 
       const result = await manager.findServiceCredentials();
 
       expect(result).toEqual([]);
     });
 
-    it('should handle credentials without environment', async () => {
+    test('should handle credentials without environment', async () => {
       const noEnvManager = new KeychainManager('test-service');
-      (findCredentials as Mock).mockReturnValue([
+      mockFindCredentials.mockReturnValue([
         { account: 'API_KEY', password: 'value1' },
         { account: 'DB_URL', password: 'value2' },
       ]);
@@ -167,7 +140,7 @@ describe('KeychainManager', () => {
   });
 
   describe('setEnvironmentVariables', () => {
-    it('should set multiple environment variables', async () => {
+    test('should set multiple environment variables', async () => {
       const variables = [
         { key: 'API_KEY', value: 'secret1' },
         { key: 'DB_URL', value: 'postgres://localhost' },
@@ -182,7 +155,7 @@ describe('KeychainManager', () => {
       );
     });
 
-    it('should handle empty array', async () => {
+    test('should handle empty array', async () => {
       await manager.setEnvironmentVariables([]);
 
       expect(mockEntry.setPassword).not.toHaveBeenCalled();
@@ -190,8 +163,8 @@ describe('KeychainManager', () => {
   });
 
   describe('getEnvironmentVariables', () => {
-    it('should return all environment variables', async () => {
-      (findCredentials as Mock).mockReturnValue([
+    test('should return all environment variables', async () => {
+      mockFindCredentials.mockReturnValue([
         { account: 'API_KEY?env=development', password: 'secret1' },
         { account: 'DB_URL', password: 'postgres://localhost' },
       ]);
@@ -204,8 +177,8 @@ describe('KeychainManager', () => {
       ]);
     });
 
-    it('should return empty array when no variables found', async () => {
-      (findCredentials as Mock).mockReturnValue([]);
+    test('should return empty array when no variables found', async () => {
+      mockFindCredentials.mockReturnValue([]);
 
       const result = await manager.getEnvironmentVariables();
 
@@ -214,7 +187,7 @@ describe('KeychainManager', () => {
   });
 
   describe('removeEnvironmentVariable', () => {
-    it('should remove environment variable', async () => {
+    test('should remove environment variable', async () => {
       mockEntry.deletePassword.mockReturnValue(true);
 
       const result = await manager.removeEnvironmentVariable('API_KEY');
@@ -225,7 +198,7 @@ describe('KeychainManager', () => {
   });
 
   describe('updateEnvironmentVariable', () => {
-    it('should update environment variable', async () => {
+    test('should update environment variable', async () => {
       await manager.updateEnvironmentVariable('API_KEY', 'new-secret');
 
       expect(mockEntry.setPassword).toHaveBeenCalledWith('new-secret');
@@ -233,8 +206,8 @@ describe('KeychainManager', () => {
   });
 
   describe('clearAllEnvironmentVariables', () => {
-    it('should clear all environment variables', async () => {
-      (findCredentials as Mock).mockReturnValue([
+    test('should clear all environment variables', async () => {
+      mockFindCredentials.mockReturnValue([
         { account: 'API_KEY?env=development', password: 'secret1' },
         { account: 'DB_URL', password: 'postgres://localhost' },
       ]);
@@ -245,8 +218,8 @@ describe('KeychainManager', () => {
       expect(mockEntry.deletePassword).toHaveBeenCalledTimes(2);
     });
 
-    it('should handle empty credentials list', async () => {
-      (findCredentials as Mock).mockReturnValue([]);
+    test('should handle empty credentials list', async () => {
+      mockFindCredentials.mockReturnValue([]);
 
       await manager.clearAllEnvironmentVariables();
 

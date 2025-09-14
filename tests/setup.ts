@@ -1,17 +1,36 @@
-import { webcrypto } from 'node:crypto';
-import { afterAll, beforeAll, vi } from 'vitest';
+/**
+ * Test setup file - loaded as a preload via bunfig.toml
+ * Mocks external dependencies that can't be easily tested
+ */
 
-// Polyfill crypto.getRandomValues for tests
-if (!globalThis.crypto) {
-  globalThis.crypto = webcrypto as unknown as Crypto;
-}
+import { mock } from 'bun:test';
 
-beforeAll(() => {
-  // Mock console methods to avoid noise in tests
-  vi.spyOn(console, 'log').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-});
+// Mock @napi-rs/keyring
+export const mockEntry = {
+  setPassword: mock(),
+  getPassword: mock(),
+  deletePassword: mock(),
+};
 
-afterAll(() => {
-  vi.restoreAllMocks();
-});
+export const mockFindCredentials = mock();
+
+mock.module('@napi-rs/keyring', () => ({
+  Entry: mockEntry,
+  findCredentials: mockFindCredentials,
+}));
+
+// Mock simple-git
+export const mockGit = {
+  init: mock(),
+  status: mock(),
+  getRemotes: mock(),
+  checkIsRepo: mock(),
+  revparse: mock(),
+};
+
+export const mockSimpleGit = mock(() => mockGit);
+
+mock.module('simple-git', () => ({
+  simpleGit: mockSimpleGit,
+  default: mockSimpleGit,
+}));

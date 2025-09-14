@@ -11,3 +11,6 @@ process.env.NODE_ENV = "production"
 [install]
 # Ensure all dependencies are installed
 exact = false 
+
+[test]
+preload = ["./tests/setup.ts"]

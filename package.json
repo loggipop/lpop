@@ -1,75 +1,72 @@
 {
-	"name": "@loggipop/lpop",
-	"version": "0.3.1",
-	"author": "Loggipop",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/loggipop/lpop.git"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "2.1.4",
-		"@napi-rs/keyring": "^1.1.8",
-		"@noble/post-quantum": "^0.5.1",
-		"@types/bun": "latest",
-		"@types/node": "^24.2.0",
-		"@vitest/coverage-v8": "^3.2.4",
-		"@vitest/ui": "^3.2.4",
-		"bs58": "^6.0.0",
-		"chalk": "^5.4.1",
-		"clipboardy": "^4.0.0",
-		"commander": "^14.0.0",
-		"dotenv": "^17.2.0",
-		"git-url-parse": "^16.1.0",
-		"happy-dom": "^18.0.1",
-		"lefthook": "^1.12.3",
-		"simple-git": "^3.28.0",
-		"tsx": "^4.19.2",
-		"typescript": "^5.7.2",
-		"vitest": "^3.2.4"
-	},
-	"optionalDependencies": {
-		"@loggipop/lpop-linux-x64": "latest",
-		"@loggipop/lpop-linux-arm64": "latest",
-		"@loggipop/lpop-darwin-x64": "latest",
-		"@loggipop/lpop-darwin-arm64": "latest",
-		"@loggipop/lpop-windows-x64": "latest"
-	},
-	"bin": {
-		"lpop": "./bin/lpop"
-	},
-	"bugs": {
-		"url": "https://github.com/loggipop/lpop/issues"
-	},
-	"description": "A CLI tool for managing environment variables in the system keychain",
-	"files": [
-		"bin/lpop",
-		"scripts/postinstall.js",
-		"README.md",
-		"LICENSE"
-	],
-	"homepage": "https://github.com/loggipop/lpop#readme",
-	"keywords": [
-		"cli",
-		"environment",
-		"variables",
-		"keychain",
-		"git"
-	],
-	"license": "MIT",
-	"scripts": {
-		"build:binaries": "./scripts/build-binary.sh",
-		"build:sign-notarize": "./scripts/build-sign-notarize.sh",
-		"prepare-packages": "node scripts/prepare-packages.js",
-		"dev": "bun run src/index.ts",
-		"clean": "rm -rf dist/ lpop lpop-*",
-		"lint": "biome check",
-		"lint:fix": "biome check --write",
-		"prepack": "bun run build:binaries && bun run prepare-packages",
-		"postinstall": "node scripts/postinstall.js",
-		"test": "vitest --run",
-		"test:watch": "vitest --watch",
-		"test:ui": "vitest --ui",
-		"test:coverage": "vitest --coverage"
-	},
-	"type": "module"
+  "name": "@loggipop/lpop",
+  "version": "0.3.1",
+  "author": "Loggipop",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loggipop/lpop.git"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.1.4",
+    "@napi-rs/keyring": "^1.1.8",
+    "@noble/post-quantum": "^0.5.1",
+    "@types/bun": "latest",
+    "@types/node": "^24.2.0",
+    "bs58": "^6.0.0",
+    "chalk": "^5.4.1",
+    "clipboardy": "^4.0.0",
+    "commander": "^14.0.0",
+    "dotenv": "^17.2.0",
+    "git-url-parse": "^16.1.0",
+    "lefthook": "^1.12.3",
+    "simple-git": "^3.28.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "optionalDependencies": {
+    "@loggipop/lpop-linux-x64": "latest",
+    "@loggipop/lpop-linux-arm64": "latest",
+    "@loggipop/lpop-darwin-x64": "latest",
+    "@loggipop/lpop-darwin-arm64": "latest",
+    "@loggipop/lpop-windows-x64": "latest"
+  },
+  "bin": {
+    "lpop": "./bin/lpop"
+  },
+  "bugs": {
+    "url": "https://github.com/loggipop/lpop/issues"
+  },
+  "description": "A CLI tool for managing environment variables in the system keychain",
+  "files": [
+    "bin/lpop",
+    "scripts/postinstall.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "homepage": "https://github.com/loggipop/lpop#readme",
+  "keywords": [
+    "cli",
+    "environment",
+    "variables",
+    "keychain",
+    "git"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build:binaries": "./scripts/build-binary.sh",
+    "build:sign-notarize": "./scripts/build-sign-notarize.sh",
+    "prepare-packages": "node scripts/prepare-packages.js",
+    "dev": "bun run src/index.ts",
+    "clean": "rm -rf dist/ lpop lpop-*",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "prepack": "bun run build:binaries && bun run prepare-packages",
+    "postinstall": "node scripts/postinstall.js",
+    "test:run": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "test:integration": "bun test tests/cli.integration.test.ts",
+    "test:unit": "bun test --ignore tests/cli.integration.test.ts"
+  },
+  "type": "module"
 }

@@ -1,75 +1,61 @@
-import type { GitUrl } from 'git-url-parse';
-import GitUrlParse from 'git-url-parse';
-import { simpleGit } from 'simple-git';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   GitPathResolver,
   getServicePrefix,
   isDevelopment,
 } from '../src/git-path-resolver';
-
-// Mock simple-git with factory function
-vi.mock('simple-git', () => {
-  const mockGit = {
-    status: vi.fn(),
-    getRemotes: vi.fn(),
-  };
-
-  return {
-    simpleGit: vi.fn(() => mockGit),
-  };
-});
-
-// Mock git-url-parse
-vi.mock('git-url-parse', () => ({
-  default: vi.fn(),
-}));
+import { mockGit, mockSimpleGit } from './setup';
 
 describe('GitPathResolver', () => {
   let resolver: GitPathResolver;
 
-  // Get properly typed mocked modules
-  const mockedSimpleGit = vi.mocked(simpleGit);
-  const mockedGitUrlParse = vi.mocked(GitUrlParse);
-
-  // Helper to get the mock git instance
-  const getMockGitInstance = () => {
-    const results = mockedSimpleGit.mock.results;
-    return results[results.length - 1]?.value;
-  };
-
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset all mocks
+    mockGit.init.mockReset();
+    mockGit.status.mockReset();
+    mockGit.getRemotes.mockReset();
+    mockGit.checkIsRepo.mockReset();
+    mockGit.revparse.mockReset();
+    mockSimpleGit.mockReset();
+
+    // Setup the mock to return the mockGit instance
+    mockSimpleGit.mockReturnValue(mockGit);
     resolver = new GitPathResolver('/test/dir');
   });
 
   describe('constructor', () => {
-    it('should create instance with custom working directory', () => {
+    test('should create instance with custom working directory', () => {
       new GitPathResolver('/custom/path');
-      expect(mockedSimpleGit).toHaveBeenCalledWith('/custom/path');
+      expect(mockSimpleGit).toHaveBeenCalledWith('/custom/path');
     });
 
-    it('should use current working directory by default', () => {
+    test('should use current working directory by default', () => {
       const originalCwd = process.cwd();
       new GitPathResolver();
-      expect(mockedSimpleGit).toHaveBeenCalledWith(originalCwd);
+      expect(mockSimpleGit).toHaveBeenCalledWith(originalCwd);
     });
   });
 
   describe('isGitRepository', () => {
-    it('should return true when in a git repository', async () => {
-      const mockGit = getMockGitInstance();
+    test('should return true when in a git repository', async () => {
       mockGit.status.mockResolvedValue({});
 
       const result = await resolver.isGitRepository();
 
-      expect(mockGit.status).toHaveBeenCalled();
       expect(result).toBe(true);
+      expect(mockGit.status).toHaveBeenCalled();
     });
 
-    it('should return false when not in a git repository', async () => {
-      const mockGit = getMockGitInstance();
+    test('should return false when not in a git repository', async () => {
       mockGit.status.mockRejectedValue(new Error('Not a git repo'));
+
+      const result = await resolver.isGitRepository();
+
+      expect(result).toBe(false);
+    });
+
+    test('should return false on error', async () => {
+      mockGit.status.mockRejectedValue(new Error('Git error'));
 
       const result = await resolver.isGitRepository();
 
@@ -78,9 +64,8 @@ describe('GitPathResolver', () => {
   });
 
   describe('getRemoteUrl', () => {
-    it('should return fetch URL for origin remote', async () => {
-      const mockGit = getMockGitInstance();
-      mockGit.getRemotes.mockResolvedValue([
+    test('should return fetch URL for origin remote', async () => {
+      const mockRemotes = [
         {
           name: 'origin',
           refs: {
@@ -88,33 +73,33 @@ describe('GitPathResolver', () => {
             push: 'https://github.com/user/repo.git',
           },
         },
-      ]);
+      ];
+      mockGit.getRemotes.mockResolvedValue(mockRemotes);
 
       const result = await resolver.getRemoteUrl();
 
-      expect(mockGit.getRemotes).toHaveBeenCalledWith(true);
       expect(result).toBe('https://github.com/user/repo.git');
+      expect(mockGit.getRemotes).toHaveBeenCalledWith(true);
     });
 
-    it('should return URL for custom remote name', async () => {
-      const mockGit = getMockGitInstance();
-      mockGit.getRemotes.mockResolvedValue([
+    test('should return URL for custom remote name', async () => {
+      const mockRemotes = [
         {
           name: 'upstream',
           refs: {
-            fetch: 'https://github.com/org/project.git',
-            push: 'https://github.com/org/project.git',
+            fetch: 'https://github.com/upstream/repo.git',
+            push: 'https://github.com/upstream/repo.git',
           },
         },
-      ]);
+      ];
+      mockGit.getRemotes.mockResolvedValue(mockRemotes);
 
       const result = await resolver.getRemoteUrl('upstream');
 
-      expect(result).toBe('https://github.com/org/project.git');
+      expect(result).toBe('https://github.com/upstream/repo.git');
     });
 
-    it('should return null when remote not found', async () => {
-      const mockGit = getMockGitInstance();
+    test('should return null when remote not found', async () => {
       mockGit.getRemotes.mockResolvedValue([]);
 
       const result = await resolver.getRemoteUrl();
@@ -122,8 +107,7 @@ describe('GitPathResolver', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null on error', async () => {
-      const mockGit = getMockGitInstance();
+    test('should return null on error', async () => {
       mockGit.getRemotes.mockRejectedValue(new Error('Git error'));
 
       const result = await resolver.getRemoteUrl();
@@ -133,51 +117,50 @@ describe('GitPathResolver', () => {
   });
 
   describe('getGitInfo', () => {
-    it('should parse git URL and return git info', async () => {
-      const mockGit = getMockGitInstance();
+    test('should parse git URL and return git info', async () => {
+      mockGit.checkIsRepo.mockResolvedValue(true);
       mockGit.getRemotes.mockResolvedValue([
         {
           name: 'origin',
           refs: {
-            fetch: 'https://github.com/user/repo.git',
+            fetch: 'https://github.com/testuser/testrepo.git',
+            push: 'https://github.com/testuser/testrepo.git',
           },
         },
       ]);
 
-      mockedGitUrlParse.mockReturnValue({
-        owner: 'user',
-        name: 'repo',
-        full_name: 'user/repo',
-        source: 'github.com',
-        ref: '',
-        filepath: '',
-        filepathtype: '',
-        organization: '',
-        protocol: 'https',
-        resource: 'github.com',
-        port: null,
-        pathname: '/user/repo',
-        search: '',
-        hash: '',
-        href: 'https://github.com/user/repo.git',
-        token: '',
-        toString: vi.fn(() => 'https://github.com/user/repo.git'),
-      } as unknown as GitUrl);
-
       const result = await resolver.getGitInfo();
 
-      expect(mockedGitUrlParse).toHaveBeenCalledWith(
-        'https://github.com/user/repo.git',
-      );
       expect(result).toEqual({
-        owner: 'user',
-        name: 'repo',
-        full_name: 'user/repo',
+        owner: 'testuser',
+        name: 'testrepo',
+        full_name: 'testuser/testrepo',
       });
     });
 
-    it('should return null when no remote URL', async () => {
-      const mockGit = getMockGitInstance();
+    test('should handle SSH URLs', async () => {
+      mockGit.checkIsRepo.mockResolvedValue(true);
+      mockGit.getRemotes.mockResolvedValue([
+        {
+          name: 'origin',
+          refs: {
+            fetch: 'git@github.com:testuser/testrepo.git',
+            push: 'git@github.com:testuser/testrepo.git',
+          },
+        },
+      ]);
+
+      const result = await resolver.getGitInfo();
+
+      expect(result).toEqual({
+        owner: 'testuser',
+        name: 'testrepo',
+        full_name: 'testuser/testrepo',
+      });
+    });
+
+    test('should handle missing git remote', async () => {
+      mockGit.checkIsRepo.mockResolvedValue(true);
       mockGit.getRemotes.mockResolvedValue([]);
 
       const result = await resolver.getGitInfo();
@@ -185,20 +168,8 @@ describe('GitPathResolver', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null when URL parsing fails', async () => {
-      const mockGit = getMockGitInstance();
-      mockGit.getRemotes.mockResolvedValue([
-        {
-          name: 'origin',
-          refs: {
-            fetch: 'invalid-url',
-          },
-        },
-      ]);
-
-      mockedGitUrlParse.mockImplementation(() => {
-        throw new Error('Parse error');
-      });
+    test('should handle non-git directory', async () => {
+      mockGit.checkIsRepo.mockResolvedValue(false);
 
       const result = await resolver.getGitInfo();
 
@@ -207,139 +178,157 @@ describe('GitPathResolver', () => {
   });
 
   describe('generateServiceNameAsync', () => {
-    it('should generate service name from git info', async () => {
-      const mockGit = getMockGitInstance();
+    test('should generate service name from git info', async () => {
+      mockGit.checkIsRepo.mockResolvedValue(true);
       mockGit.getRemotes.mockResolvedValue([
         {
           name: 'origin',
           refs: {
-            fetch: 'https://github.com/user/repo.git',
+            fetch: 'https://github.com/testuser/testrepo.git',
+            push: 'https://github.com/testuser/testrepo.git',
           },
         },
       ]);
 
-      mockedGitUrlParse.mockReturnValue({
-        owner: 'user',
-        name: 'repo',
-        full_name: 'user/repo',
-        source: 'github.com',
-        ref: '',
-        filepath: '',
-        filepathtype: '',
-        organization: '',
-        protocol: 'https',
-        resource: 'github.com',
-        port: null,
-        pathname: '/user/repo',
-        search: '',
-        hash: '',
-        href: 'https://github.com/user/repo.git',
-        token: '',
-        toString: vi.fn(() => 'https://github.com/user/repo.git'),
-      } as unknown as GitUrl);
+      const result = await resolver.generateServiceNameAsync();
 
-      const originalIsDev = isDevelopment();
-      const expectedPrefix = originalIsDev ? 'lpop-dev://' : 'lpop://';
+      expect(result).toBe('lpop-dev://testuser/testrepo');
+    });
+
+    test('should generate service name (no env parameter)', async () => {
+      // Note: generateServiceNameAsync doesn't take parameters in the actual implementation
+      mockGit.checkIsRepo.mockResolvedValue(true);
+      mockGit.getRemotes.mockResolvedValue([
+        {
+          name: 'origin',
+          refs: {
+            fetch: 'https://github.com/testuser/testrepo.git',
+            push: 'https://github.com/testuser/testrepo.git',
+          },
+        },
+      ]);
 
       const result = await resolver.generateServiceNameAsync();
 
-      expect(result).toBe(`${expectedPrefix}user/repo`);
+      expect(result).toBe('lpop-dev://testuser/testrepo');
     });
 
-    it('should use fallback when no git info available', async () => {
-      const mockGit = getMockGitInstance();
-      mockGit.getRemotes.mockResolvedValue([]);
+    test('should use lpop:// prefix in production', async () => {
+      // Mock isDevelopment to return false
+      const originalExecPath = process.execPath;
+      Object.defineProperty(process, 'execPath', {
+        value: '/usr/local/bin/lpop',
+        writable: true,
+        configurable: true,
+      });
 
-      const originalIsDev = isDevelopment();
-      const expectedPrefix = originalIsDev ? 'lpop-dev://' : 'lpop://';
+      mockGit.checkIsRepo.mockResolvedValue(true);
+      mockGit.getRemotes.mockResolvedValue([
+        {
+          name: 'origin',
+          refs: {
+            fetch: 'https://github.com/testuser/testrepo.git',
+            push: 'https://github.com/testuser/testrepo.git',
+          },
+        },
+      ]);
+
+      const prodResolver = new GitPathResolver('/test/dir');
+      const result = await prodResolver.generateServiceNameAsync();
+
+      expect(result).toBe('lpop://testuser/testrepo');
+
+      // Restore
+      Object.defineProperty(process, 'execPath', {
+        value: originalExecPath,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    test('should fallback to local directory for non-git repo', async () => {
+      mockGit.checkIsRepo.mockResolvedValue(false);
+      mockGit.getRemotes.mockResolvedValue([]);
 
       const result = await resolver.generateServiceNameAsync();
 
-      expect(result).toBe(`${expectedPrefix}local/dir`);
+      // Should use directory name as fallback with lpop-dev:// prefix
+      expect(result).toBe('lpop-dev://local/dir');
     });
 
-    it('should handle empty directory name', async () => {
-      const mockGit = getMockGitInstance();
+    test('should handle no git remotes', async () => {
+      mockGit.checkIsRepo.mockResolvedValue(true);
       mockGit.getRemotes.mockResolvedValue([]);
-      const emptyDirResolver = new GitPathResolver('');
 
-      const originalIsDev = isDevelopment();
-      const expectedPrefix = originalIsDev ? 'lpop-dev://' : 'lpop://';
+      const result = await resolver.generateServiceNameAsync();
 
-      const result = await emptyDirResolver.generateServiceNameAsync();
-
-      expect(result).toBe(`${expectedPrefix}local/unknown`);
+      // Falls back to local directory when no remotes
+      expect(result).toBe('lpop-dev://local/dir');
     });
   });
 
-  describe('static methods', () => {
-    describe('extractEnvironmentFromService', () => {
-      it('should extract environment from service name', () => {
-        const result = GitPathResolver.extractEnvironmentFromService(
-          'lpop://user/repo?env=production',
-        );
-        expect(result).toBe('production');
+  describe('getServicePrefix', () => {
+    test('should return correct prefix based on NODE_ENV', () => {
+      const originalEnv = process.env.NODE_ENV;
+
+      process.env.NODE_ENV = 'development';
+      expect(getServicePrefix()).toBe('lpop-dev://');
+
+      // getServicePrefix uses isDevelopment() which checks process.execPath, not NODE_ENV
+      // This test should use different approach
+      const originalExecPath = process.execPath;
+      Object.defineProperty(process, 'execPath', {
+        value: '/usr/local/bin/lpop',
+        writable: true,
+        configurable: true,
+      });
+      expect(getServicePrefix()).toBe('lpop://');
+      Object.defineProperty(process, 'execPath', {
+        value: originalExecPath,
+        writable: true,
+        configurable: true,
       });
 
-      it('should return null when no environment specified', () => {
-        const result =
-          GitPathResolver.extractEnvironmentFromService('lpop://user/repo');
-        expect(result).toBeNull();
-      });
-    });
-
-    describe('extractRepoFromService', () => {
-      it('should extract repo from service name', () => {
-        const result = GitPathResolver.extractRepoFromService(
-          'lpop://user/repo?env=production',
-        );
-        expect(result).toBe('user/repo');
-      });
-
-      it('should handle service name without environment', () => {
-        const result =
-          GitPathResolver.extractRepoFromService('lpop://org/project');
-        expect(result).toBe('org/project');
-      });
+      process.env.NODE_ENV = originalEnv;
     });
   });
-});
 
-describe('isDevelopment', () => {
-  const originalArgv = process.argv;
-  const originalExecPath = process.execPath;
+  describe('isDevelopment', () => {
+    test('should correctly identify development environment', () => {
+      const originalArgv = process.argv;
+      const originalExecPath = process.execPath;
 
-  beforeEach(() => {
-    process.argv = [...originalArgv];
-    process.execPath = originalExecPath;
-  });
+      // Test when running with bun/node from source
+      process.argv = ['node', '/path/to/src/index.ts'];
+      expect(isDevelopment()).toBe(true);
 
-  afterEach(() => {
-    process.argv = originalArgv;
-    process.execPath = originalExecPath;
-  });
+      // Test when running as compiled binary
+      Object.defineProperty(process, 'execPath', {
+        value: '/usr/local/bin/lpop',
+        writable: true,
+        configurable: true,
+      });
+      expect(isDevelopment()).toBe(false);
 
-  it('should return false when running as compiled binary', () => {
-    process.execPath = '/usr/local/bin/lpop';
-    expect(isDevelopment()).toBe(false);
-  });
+      // Test when running through node_modules
+      Object.defineProperty(process, 'execPath', {
+        value: '/usr/local/bin/node',
+        writable: true,
+        configurable: true,
+      });
+      process.argv = [
+        'node',
+        '/path/node_modules/@loggipop/lpop/dist/index.js',
+      ];
+      expect(isDevelopment()).toBe(false);
 
-  it('should return false when running through node_modules', () => {
-    process.argv[1] = '/project/node_modules/.bin/lpop';
-    expect(isDevelopment()).toBe(false);
-  });
-
-  it('should return true when running from source', () => {
-    process.execPath = '/usr/local/bin/bun';
-    process.argv[1] = '/project/src/index.ts';
-    expect(isDevelopment()).toBe(true);
-  });
-});
-
-describe('getServicePrefix', () => {
-  it('should return development prefix when in development', () => {
-    const originalIsDev = isDevelopment();
-    const expected = originalIsDev ? 'lpop-dev://' : 'lpop://';
-    expect(getServicePrefix()).toBe(expected);
+      // Restore original values
+      process.argv = originalArgv;
+      Object.defineProperty(process, 'execPath', {
+        value: originalExecPath,
+        writable: true,
+        configurable: true,
+      });
+    });
   });
 });

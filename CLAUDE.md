@@ -27,8 +27,9 @@ bun watch
 # Run the built CLI
 bun start
 
-# Run the tests using vitest
-bun run test
+# Set CLAUDE_CODE=1 then run the tests using bun
+bun test
+
 ```
 
 ## Architecture
